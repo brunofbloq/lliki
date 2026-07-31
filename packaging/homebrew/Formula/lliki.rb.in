@@ -1,0 +1,21 @@
+class Lliki < Formula
+  include Language::Python::Virtualenv
+
+  desc "Bootstrap and maintain model-neutral project wikis for coding agents"
+  homepage "https://github.com/brunofbloq/lliki"
+  url "@URL@"
+  sha256 "@SHA256@"
+  license "MIT"
+
+  depends_on "python@3.13"
+
+  def install
+    virtualenv_install_with_resources
+  end
+
+  test do
+    assert_match "lliki", shell_output("#{bin}/lliki --version")
+    system bin/"lliki", "init", "--root", testpath, "--default", "--yes"
+    assert_path_exists testpath/"wiki/index.md"
+  end
+end

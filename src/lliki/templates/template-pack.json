@@ -1,0 +1,81 @@
+{
+  "schema_version": 2,
+  "template_pack_version": "0.2.1",
+  "directories": [
+    "wiki",
+    "wiki/tasks",
+    "wiki/exploratory",
+    "wiki/docs"
+  ],
+  "files": [
+    {
+      "template": "CLAUDE.md",
+      "target": "CLAUDE.md",
+      "strategy": "managed-section",
+      "section_id": "lliki-contract",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/index.md",
+      "target": "wiki/index.md",
+      "strategy": "create-only",
+      "needs_context": true
+    },
+    {
+      "template": "wiki/wiki-rules.md",
+      "target": "wiki/wiki-rules.md",
+      "strategy": "managed-section",
+      "section_id": "wiki-rules",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/tasks/dashboard.md",
+      "target": "wiki/tasks/dashboard.md",
+      "strategy": "generated",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/decisions.md",
+      "target": "wiki/decisions.md",
+      "strategy": "append-only",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/lessons_learned.md",
+      "target": "wiki/lessons_learned.md",
+      "strategy": "append-only",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/exploratory/index.md",
+      "target": "wiki/exploratory/index.md",
+      "strategy": "create-only",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/docs/README.md",
+      "target": "wiki/docs/README.md",
+      "strategy": "managed-section",
+      "section_id": "docs-index",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/docs/project-overview.md",
+      "target": "wiki/docs/project-overview.md",
+      "strategy": "create-only",
+      "needs_context": true
+    },
+    {
+      "template": "wiki/docs/development-workflow.md",
+      "target": "wiki/docs/development-workflow.md",
+      "strategy": "create-only",
+      "needs_context": true
+    },
+    {
+      "template": "wiki/docs/repository-rules.md",
+      "target": "wiki/docs/repository-rules.md",
+      "strategy": "create-only",
+      "needs_context": true
+    }
+  ]
+}

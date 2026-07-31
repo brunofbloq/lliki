@@ -1,0 +1,15 @@
+Source: lliki
+Section: devel
+Priority: optional
+Maintainer: brunofbloq <engineering@example.invalid>
+Build-Depends: debhelper-compat (= 13), dh-sequence-python3, pybuild-plugin-pyproject, python3-all, python3-setuptools
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/brunofbloq/lliki
+
+Package: lliki
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}
+Description: Repository-oriented project wiki bootstrap and maintenance CLI
+ Creates, inspects, repairs, validates, and mechanically maintains project wiki
+ structures used by coding agents and humans.

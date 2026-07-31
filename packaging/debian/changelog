@@ -1,0 +1,11 @@
+lliki (0.2.1) unstable; urgency=medium
+
+  * Add interactive Lliki welcome banner and project attribution.
+
+ -- brunofbloq <engineering@example.invalid>  Fri, 31 Jul 2026 16:35:00 +0100
+
+lliki (0.2.0) unstable; urgency=medium
+
+  * Initial packaged release.
+
+ -- BLOQ.IT R&D <engineering@example.invalid>  Fri, 31 Jul 2026 15:41:00 +0100

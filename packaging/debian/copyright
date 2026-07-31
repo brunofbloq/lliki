@@ -1,0 +1,7 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: lliki
+Source: https://github.com/brunofbloq/lliki
+
+Files: *
+Copyright: 2026 brunofbloq
+License: MIT
