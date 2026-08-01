@@ -8,18 +8,20 @@ file exists.
 
 ## Generic
 
-Creates `AGENTS.md`, which points compatible agents to the stable contract and
-`wiki/index.md`.
+Creates `AGENTS.md`, which points compatible agents to the stable contract,
+`wiki/tasks/scratchpad.md` for resumption, and `wiki/index.md` for new work.
 
 ## Claude
 
 Creates a project skill at `.claude/skills/lliki/SKILL.md`. Optional
 project hooks call `lliki` for mechanical dashboard refresh and lightweight
-resume context. Hooks never invent semantic decisions or documentation.
+scratchpad resume context. Hooks never invent semantic decisions,
+documentation, or scratchpad content.
 
 ## Hermes
 
-Creates `.hermes.md`, which explicitly routes Hermes to the root stable contract
-and the same wiki entry point. No global Hermes skill or plugin is installed.
+Creates `.hermes.md`, which explicitly routes Hermes to the root stable
+contract, scratchpad handover, and the same wiki knowledge map. No global Hermes
+skill or plugin is installed.
 
 All integrations are repository-local and opt-in.

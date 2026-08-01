@@ -1,8 +1,7 @@
 <!-- lliki:generated:start id=task-dashboard -->
 # Task Dashboard
 
-> Generated or maintained operational view. `wiki/index.md` should link directly
-> to the active task whenever possible.
+> Generated from YAML front matter in `wiki/tasks/*.md`.
 
 ## Active
 
@@ -19,4 +18,5 @@
 ## Recently Completed
 
 - None.
+
 <!-- lliki:generated:end id=task-dashboard -->

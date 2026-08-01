@@ -1,23 +1,21 @@
 <!-- lliki:managed:start id=generic-agent-contract -->
 # Repository Agent Instructions
 
-Read and follow `CLAUDE.md` as the stable repository contract. Read `wiki/index.md` first, then follow only the links relevant to the current
-request. Follow `wiki/wiki-rules.md` when maintaining project knowledge.
+Read and follow `CLAUDE.md` as the stable repository contract.
 
-Review wiki updates after meaningful task events and at the end of completed
-user requests. Update only durable project knowledge that changed; do not edit
-permanent wiki files after every command.
+When resuming active local work, read `wiki/tasks/scratchpad.md` first. If it names
+an active task, read that task, verify the snapshot, load only relevant focus
+files, and continue from the next action.
 
-Use the `lliki` CLI internally for mechanical inspection, validation,
-template synchronization, or task-dashboard refresh when it is available. The
-user should not need to invoke it during normal development.
+For new work, missing scratchpad, inactive scratchpad, or workstream switches,
+start from `wiki/index.md` and follow only relevant links. Follow
+`wiki/wiki-rules.md` when maintaining project knowledge.
 
-Project-specific commands and modification boundaries belong under `wiki/docs/`,
-not in this file.
+Use `wiki/tasks/scratchpad.md` as the only local handover file. Keep it bounded,
+overwrite obsolete information, and never store terminal transcripts or copied
+task specifications there.
 
-If `.lliki/state.json` exists, keep it concise and update it only for task
-changes, interruption/resumption, or meaningful next-action changes. If optional
-`.lliki/scratchpad.md` exists, use it only for difficult debugging, distill
-confirmed outcomes into the wiki, and clear temporary noise when finished.
-
+Use the `lliki` CLI internally for mechanical inspection, validation, context
+routing, template synchronization, or task-dashboard refresh when it is
+available. The user should not need to invoke it during normal development.
 <!-- lliki:managed:end id=generic-agent-contract -->

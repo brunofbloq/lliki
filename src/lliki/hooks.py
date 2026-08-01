@@ -5,9 +5,10 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from .core.context import scratchpad_route
 from .core.doctor import run_doctor
-from .core.runtime import update_state
-from .core.tasks import load_tasks, refresh_dashboard
+from .core.paths import scratchpad_path
+from .core.tasks import refresh_dashboard
 
 
 def _read_input() -> Dict[str, Any]:
@@ -21,26 +22,19 @@ def _read_input() -> Dict[str, Any]:
 
 
 def _session_context(root: Path) -> Optional[str]:
-    state_path = root / ".lliki" / "state.json"
-    if not state_path.exists():
+    mode, active_task = scratchpad_route(root)
+    path = scratchpad_path(root)
+    if mode != "resume" or not active_task or not path.exists():
         return None
     try:
-        state = json.loads(state_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+        scratchpad = path.read_text(encoding="utf-8")
+    except (UnicodeDecodeError, OSError):
         return None
-    parts = []
-    if state.get("active_task"):
-        parts.append(f"Active task: {state['active_task']}")
-    if state.get("last_result"):
-        parts.append(f"Last result: {state['last_result']}")
-    if state.get("next_action"):
-        parts.append(f"Next action: {state['next_action']}")
-    blockers = state.get("blockers") or []
-    if blockers:
-        parts.append("Blockers: " + "; ".join(map(str, blockers)))
-    if not parts:
-        return None
-    return "Lliki resume state (non-authoritative):\n" + "\n".join(f"- {p}" for p in parts)
+    return (
+        "Lliki scratchpad handover (local, non-authoritative):\n"
+        f"- Active task: {active_task}\n\n"
+        + scratchpad.strip()
+    )
 
 
 def run_hook(event: str, root: Optional[Path] = None) -> int:
@@ -58,10 +52,7 @@ def run_hook(event: str, root: Optional[Path] = None) -> int:
                     "suppressOutput": True,
                 }))
         elif event in {"claude-task-completed", "claude-stop"}:
-            refresh_dashboard(root, update_index=True, dry_run=False)
-            active = [t for t in load_tasks(root) if t.status in {"active", "in-progress", "in_progress"}]
-            if len(active) == 1:
-                update_state(root, active_task=active[0].task_id)
+            refresh_dashboard(root, update_index=False, dry_run=False)
             run_doctor(root)
         else:
             raise ValueError(f"Unknown hook event: {event}")

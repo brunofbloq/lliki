@@ -13,5 +13,8 @@ debian/.debhelper/
 debian/files
 debian/*.substvars
 *.deb
-/wiki/
+*.bak.*
+
+# Lliki local LLM handover state
+/wiki/tasks/scratchpad.md
 CLAUDE.md

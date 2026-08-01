@@ -17,6 +17,7 @@ from .core.doctor import run_doctor
 from .core.inspection import find_legacy_locations, repository_signals
 from .core.models import SetupConfig
 from .core.patching import extract_section
+from .core.paths import SCRATCHPAD_RELATIVE_PATH
 from .core.prompts import format_prompt, load_prompts
 from .core.resources import (
     export_built_in_templates,
@@ -25,7 +26,7 @@ from .core.resources import (
     validate_template_pack,
 )
 from .core.tasks import refresh_dashboard
-from .core.runtime import read_state, set_state_fields
+from .core.update import run_update
 from .hooks import run_hook
 
 
@@ -102,7 +103,7 @@ def _interactive_config(root: Path, force_mode: Optional[str], legacy_found: boo
             "\nChoose setup mode:",
             [
                 "Default — create/repair wiki and update CLAUDE.md",
-                "Custom — optional runtime state and repository-local agent integrations",
+                "Custom — repository-local agent integrations",
             ],
             default=1,
         )
@@ -110,20 +111,6 @@ def _interactive_config(root: Path, force_mode: Optional[str], legacy_found: boo
 
     if mode == "default":
         return SetupConfig(setup_mode="default")
-
-    runtime_choice = _ask_choice(
-        "\nRuntime assistance:",
-        [
-            "Disabled — wiki only",
-            "Assisted — lightweight local resume state",
-            "Debug — resume state plus optional scratchpad and logs",
-        ],
-        default=1,
-    )
-    runtime_mode = {1: "off", 2: "assisted", 3: "debug"}[runtime_choice]
-    scratchpad = runtime_mode == "debug" and _ask_yes_no(
-        "Create optional .lliki/scratchpad.md?", default=False
-    )
 
     print("\nRepository-local agent integrations (comma-separated):")
     print("  generic  -> AGENTS.md")
@@ -143,8 +130,6 @@ def _interactive_config(root: Path, force_mode: Optional[str], legacy_found: boo
     )
     return SetupConfig(
         setup_mode="custom",
-        runtime_mode=runtime_mode,
-        scratchpad=scratchpad,
         integrations=integrations,
         claude_hooks=claude_hooks,
         legacy_prompt=legacy_prompt,
@@ -155,21 +140,21 @@ def _noninteractive_config(args: argparse.Namespace) -> SetupConfig:
     integrations = _parse_integrations(args.integrate or [])
     advanced = bool(
         integrations
-        or args.runtime != "off"
-        or args.scratchpad
         or args.claude_hooks
         or args.legacy_prompt
     )
     if args.default and advanced:
-        raise ValueError("Advanced runtime or integration options require --custom")
+        raise ValueError("Advanced integration options require --custom")
+    if args.runtime in {"assisted", "debug"}:
+        raise ValueError(
+            f"--runtime assisted/debug is deprecated. Lliki now uses {SCRATCHPAD_RELATIVE_PATH} "
+            "for local handover and never creates .lliki runtime files."
+        )
     setup_mode = "custom" if args.custom or advanced else "default"
-    runtime_mode = args.runtime or "off"
     if args.claude_hooks and "claude" not in integrations:
         raise ValueError("--claude-hooks requires --integrate claude")
     return SetupConfig(
         setup_mode=setup_mode,
-        runtime_mode=runtime_mode,
-        scratchpad=bool(args.scratchpad),
         integrations=integrations,
         claude_hooks=bool(args.claude_hooks),
         legacy_prompt=bool(args.legacy_prompt),
@@ -184,7 +169,6 @@ def _show_init_result(data: dict) -> None:
         ("Updated", result.updated),
         ("Preserved", result.preserved),
         ("Backups", result.backups),
-        ("Runtime", data["runtime_created"]),
     ):
         if values:
             print(f"  {label}:")
@@ -219,14 +203,16 @@ def command_init(args: argparse.Namespace) -> int:
         config = _interactive_config(root, force_mode, bool(found["legacy_dirs"]))
         print("\nSelected configuration:")
         print(f"  Setup: {config.setup_mode}")
-        print(f"  Runtime: {config.runtime_mode}")
-        print(f"  Scratchpad: {'yes' if config.scratchpad else 'no'}")
         print(f"  Integrations: {', '.join(config.integrations) if config.integrations else 'none'}")
         if not _ask_yes_no("Proceed with this setup?", default=True):
             print("Cancelled.")
             return 1
     else:
         config = _noninteractive_config(args)
+        if args.scratchpad:
+            print(f"WARNING: --scratchpad is deprecated; {SCRATCHPAD_RELATIVE_PATH} is now created by default.", file=sys.stderr)
+        if args.runtime == "off":
+            print("WARNING: --runtime off is deprecated and now a no-op.", file=sys.stderr)
 
     data = initialize_repository(
         root,
@@ -364,27 +350,59 @@ def command_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def _show_update_result(data: dict) -> None:
+    print("Update result" if not data["dry_run"] else "Update plan")
+    actions = data["actions"]
+    for label, values in (
+        ("Created", actions["created"]),
+        ("Updated", actions["updated"]),
+        ("Preserved", actions["preserved"]),
+        ("Backups", actions["backups"]),
+    ):
+        if values:
+            print(f"  {label}:")
+            for value in values:
+                print(f"    - {value}")
+    dashboard = data["dashboard"]
+    print("  Dashboard:")
+    print(f"    - task_count: {dashboard['task_count']}")
+    print(f"    - changed: {dashboard['dashboard_changed']}")
+    doctor = data["doctor"]["summary"]
+    print("  Doctor:")
+    print(f"    - errors: {doctor['errors']}")
+    print(f"    - warnings: {doctor['warnings']}")
+    if data["warnings"]:
+        print("  Warnings:")
+        for warning in data["warnings"]:
+            print(f"    - {warning}")
+    if data["semantic_migration_needed"]:
+        print("\nSemantic migration needed. Suggested prompt:")
+        print(data["migration_prompt"])
+    else:
+        print("\nNext action: run `lliki doctor` or continue normal work.")
+
+
+def command_update(args: argparse.Namespace) -> int:
+    data = run_update(_root(args.root), dry_run=args.dry_run, max_depth=args.max_depth)
+    if args.json:
+        print(json.dumps(data, indent=2))
+    else:
+        _show_update_result(data)
+    return 0 if data["doctor"]["ok"] else 2
+
+
 
 def command_state(args: argparse.Namespace) -> int:
-    root = _root(args.root)
-    if args.state_command == "show":
-        state = read_state(root)
-        if not state:
-            print("Runtime state is not enabled for this repository.", file=sys.stderr)
-            return 2
-        print(json.dumps(state, indent=2) if args.json else _mapping_text(state))
-        return 0
-    blockers = args.blocker if args.blocker is not None else None
-    state = set_state_fields(
-        root,
-        active_task=args.active_task,
-        last_result=args.last_result,
-        next_action=args.next_action,
-        blockers=blockers,
-        clear=args.clear,
+    message = (
+        "lliki state is deprecated. Lliki no longer creates .lliki/state.json; "
+        f"use {SCRATCHPAD_RELATIVE_PATH} for local active-task handover."
     )
-    print(json.dumps(state, indent=2) if args.json else _mapping_text(state))
-    return 0
+    payload = {"deprecated": True, "message": message, "scratchpad": SCRATCHPAD_RELATIVE_PATH}
+    if args.json:
+        print(json.dumps(payload, indent=2))
+    else:
+        print(message, file=sys.stderr)
+    return 2
 
 def command_append(args: argparse.Namespace) -> int:
     content = Path(args.file).read_text(encoding="utf-8") if args.file else sys.stdin.read()
@@ -407,7 +425,7 @@ def build_parser() -> argparse.ArgumentParser:
     modes = init.add_mutually_exclusive_group()
     modes.add_argument("--default", action="store_true", help="Use simple default setup")
     modes.add_argument("--custom", action="store_true", help="Use custom setup")
-    init.add_argument("--runtime", choices=["off", "assisted", "debug"], default="off")
+    init.add_argument("--runtime", choices=["off", "assisted", "debug"], default=None)
     init.add_argument("--scratchpad", action="store_true")
     init.add_argument("--integrate", action="append", help="generic, claude, or hermes; repeatable/comma-separated")
     init.add_argument("--claude-hooks", action="store_true")
@@ -469,6 +487,13 @@ def build_parser() -> argparse.ArgumentParser:
     context.add_argument("--root", default=".")
     context.add_argument("--json", action="store_true")
     context.set_defaults(func=command_context)
+
+    update = sub.add_parser("update", help="Safely update an existing wiki to the installed Lliki model")
+    update.add_argument("--root", default=".")
+    update.add_argument("--dry-run", action="store_true")
+    update.add_argument("--json", action="store_true")
+    update.add_argument("--max-depth", type=int, default=6)
+    update.set_defaults(func=command_update)
 
 
     state = sub.add_parser("state", help="Agent-facing lightweight resume-state operations")

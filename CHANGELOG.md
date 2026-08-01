@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Refactored Lliki around a stable `wiki/index.md` knowledge map and default
+  ignored `wiki/tasks/scratchpad.md` handover file.
+- Added `lliki update` for deterministic existing-wiki migration.
+- Removed new `.lliki/`, `state.json`, runtime log, and runtime scratchpad
+  behavior from initialization and hooks.
+- Deprecated runtime CLI options, `lliki state`, and index mutation from
+  `lliki tasks refresh --update-index`.
+- Expanded deterministic doctor checks and evolved `review-wiki` into the
+  semantic wiki lint prompt.
+
 ## 0.2.1 - 2026-07-31
 
 - Added a width-aware Lliki ASCII welcome banner to interactive setup.

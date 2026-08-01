@@ -2,8 +2,9 @@
 
 ## 1. Context model
 
-Completed: stable agent contract, `wiki/index.md` as the only mandatory dynamic
-entry point, project-specific commands and protected paths under `wiki/docs/`.
+Completed: stable agent contract, `wiki/index.md` as the new-work knowledge
+map, `wiki/tasks/scratchpad.md` as ignored local handover, and project-specific
+commands and protected paths under `wiki/docs/`.
 
 ## 2. Editable templates
 
@@ -13,8 +14,9 @@ available.
 
 ## 3. Setup experience
 
-Completed: simple default setup and progressive custom setup. Runtime state,
-scratchpad, hooks, and integrations remain opt-in and repository-local.
+Completed: simple default setup and progressive custom setup. The shared
+`wiki/` root and ignored scratchpad are default behavior; hooks and
+integrations remain opt-in and repository-local.
 
 ## 4. Agent integrations
 

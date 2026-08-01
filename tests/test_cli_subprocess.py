@@ -42,6 +42,13 @@ class CLISubprocessTests(unittest.TestCase):
             diff = self.run_cli("templates", "diff", "--root", temp)
             self.assertEqual(diff.returncode, 0, diff.stdout + diff.stderr)
 
+    def test_update_json(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result = self.run_cli("update", "--root", temp, "--json")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('"actions"', result.stdout)
+            self.assertIn('"semantic_migration_needed": false', result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

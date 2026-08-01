@@ -1,20 +1,21 @@
 <!-- lliki:managed:start id=hermes-agent-contract -->
 # Hermes Repository Instructions
 
-Read and follow `CLAUDE.md` as the stable repository contract. Use `wiki/index.md` as the only mandatory dynamic project entry point. Follow
-only the links needed for the current request and use `wiki/wiki-rules.md` when
-maintaining project knowledge.
+Read and follow `CLAUDE.md` as the stable repository contract.
 
-Review wiki updates after meaningful task events and at the end of completed
-user requests. Make focused semantic updates only when durable project truth
-changed. Use the local `lliki` CLI for mechanical inspection, validation,
-or task-dashboard refresh when efficient.
+When resuming active local work, read `wiki/tasks/scratchpad.md` first. If it names
+an active task, read that task, verify the snapshot, load only relevant focus
+files, and continue from the next action.
 
-Do not require the user to run lliki commands during normal work.
+For new work, missing scratchpad, inactive scratchpad, or workstream switches,
+start from `wiki/index.md` and follow only relevant links. Use
+`wiki/wiki-rules.md` when maintaining project knowledge.
 
-If `.lliki/state.json` exists, keep it concise and update it only for task
-changes, interruption/resumption, or meaningful next-action changes. If optional
-`.lliki/scratchpad.md` exists, use it only for difficult debugging, distill
-confirmed outcomes into the wiki, and clear temporary noise when finished.
+Use `wiki/tasks/scratchpad.md` as the only local handover file. Keep it bounded,
+overwrite obsolete information, and never store terminal transcripts or copied
+task specifications there.
 
+Use the local `lliki` CLI for mechanical inspection, context routing,
+validation, or task-dashboard refresh when efficient. Do not require the user
+to run lliki commands during normal work.
 <!-- lliki:managed:end id=hermes-agent-contract -->

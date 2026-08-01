@@ -25,8 +25,6 @@ class TemplatePack:
 @dataclass
 class SetupConfig:
     setup_mode: str = "default"
-    runtime_mode: str = "off"  # off | assisted | debug
-    scratchpad: bool = False
     integrations: Tuple[str, ...] = field(default_factory=tuple)
     claude_hooks: bool = False
     legacy_prompt: bool = False

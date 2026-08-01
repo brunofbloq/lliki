@@ -11,6 +11,8 @@ Future LLM-provider integrations should use operating-system keychains,
 provider-standard environment variables, or CI secret stores. External context
 transmission must remain explicit and reviewable.
 
-The optional `.lliki/` directory is local runtime state and is gitignored.
+`wiki/tasks/scratchpad.md` is local handover state and is gitignored. Legacy `.lliki/`
+directories, if present from older versions, are local state and should not be
+published.
 It may contain project-sensitive resume notes or debug information and should
 not be uploaded automatically.

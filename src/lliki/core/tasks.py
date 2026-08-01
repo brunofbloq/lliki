@@ -7,6 +7,21 @@ from typing import Dict, Iterable, List, Optional
 
 from .patching import atomic_write, backup_file, extract_section, replace_section
 
+SUPPORTED_STATUSES = {
+    "active",
+    "in-progress",
+    "in_progress",
+    "blocked",
+    "planned",
+    "todo",
+    "backlog",
+    "completed",
+    "done",
+    "cancelled",
+    "canceled",
+}
+IGNORED_TASK_FILENAMES = {"dashboard.md", "scratchpad.md"}
+
 _FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
@@ -53,7 +68,7 @@ def load_tasks(root: Path) -> List[TaskRecord]:
         return []
     records: List[TaskRecord] = []
     for path in sorted(task_dir.glob("*.md")):
-        if path.name == "dashboard.md":
+        if path.name in IGNORED_TASK_FILENAMES:
             continue
         record = parse_frontmatter(path)
         if record:
@@ -117,22 +132,13 @@ def refresh_dashboard(root: Path, update_index: bool = False, dry_run: bool = Fa
         if not dry_run:
             atomic_write(dashboard_path, rendered)
 
-    index_changed = False
-    active = [t for t in tasks if t.status in {"active", "in-progress", "in_progress"}]
-    if update_index and len(active) == 1:
-        index_path = root / "wiki" / "index.md"
-        if index_path.exists():
-            text = index_path.read_text(encoding="utf-8")
-            replacement = f"- **Active task:** {active[0].link}"
-            updated, count = re.subn(r"^- \*\*Active task:\*\*.*$", replacement, text, count=1, flags=re.MULTILINE)
-            if count and updated != text:
-                index_changed = True
-                if not dry_run:
-                    backup_file(index_path)
-                    atomic_write(index_path, updated)
+    warnings: list[str] = []
+    if update_index:
+        warnings.append("--update-index is deprecated; wiki/index.md is a stable knowledge map and was not changed.")
     return {
         "task_count": len(tasks),
         "dashboard_changed": changed,
-        "index_changed": index_changed,
+        "index_changed": False,
         "backup": str(backup) if backup else None,
+        "warnings": warnings,
     }

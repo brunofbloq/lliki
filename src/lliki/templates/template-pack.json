@@ -19,13 +19,19 @@
       "template": "wiki/index.md",
       "target": "wiki/index.md",
       "strategy": "create-only",
-      "needs_context": true
+      "needs_context": false
     },
     {
       "template": "wiki/wiki-rules.md",
       "target": "wiki/wiki-rules.md",
       "strategy": "managed-section",
       "section_id": "wiki-rules",
+      "needs_context": false
+    },
+    {
+      "template": "wiki/tasks/scratchpad.md",
+      "target": "wiki/tasks/scratchpad.md",
+      "strategy": "create-only",
       "needs_context": false
     },
     {

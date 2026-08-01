@@ -5,12 +5,12 @@ from typing import Callable
 
 from lliki.integrations.install import install_selected
 
+from .gitignore import ensure_scratchpad_ignored
 from .inspection import find_legacy_locations, repository_signals
 from .models import OperationResult, SetupConfig, TemplateFile
 from .patching import append_section, atomic_write, backup_file, replace_section
 from .prompts import format_prompt, load_prompts
 from .resources import load_template_pack, read_template
-from .runtime import ensure_gitignore, write_runtime_config
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
@@ -154,20 +154,16 @@ def initialize_repository(
     )
 
     integration_results = []
-    runtime_created: list[str] = []
     if not dry_run and config.integrations:
         integration_results = install_selected(root, config.integrations, config.claude_hooks)
 
-    if not dry_run and config.runtime_mode != "off":
-        runtime_created = write_runtime_config(
-            root,
-            mode=config.runtime_mode,
-            integrations=list(config.integrations),
-            scratchpad=config.scratchpad,
-            hooks=config.claude_hooks,
-        )
-        if ensure_gitignore(root):
-            runtime_created.append(".gitignore")
+    gitignore = ensure_scratchpad_ignored(root, dry_run=dry_run)
+    if gitignore.status == "created":
+        result.created.append(gitignore.path)
+    elif gitignore.status == "updated":
+        result.updated.append(gitignore.path)
+    else:
+        result.preserved.append(gitignore.path)
 
     prompts = load_prompts()
     prompt_outputs = [format_prompt(prompts["initialize-project"])]
@@ -181,7 +177,6 @@ def initialize_repository(
         "signals": signals,
         "result": result,
         "integrations": integration_results,
-        "runtime_created": runtime_created,
         "prompts": prompt_outputs,
         "dry_run": dry_run,
     }
