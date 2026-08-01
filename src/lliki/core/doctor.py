@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .gitignore import has_scratchpad_ignore
+from .gitignore import has_scratchpad_ignore, has_task_backup_ignore
 from .paths import (
     LEGACY_SCRATCHPAD_RELATIVE_PATH,
     SCRATCHPAD_RELATIVE_PATH,
@@ -184,6 +184,8 @@ def run_doctor(root: Path) -> Dict[str, Any]:
             issues.append(_issue("warning", "scratchpad-tracked", SCRATCHPAD_RELATIVE_PATH))
     if not has_scratchpad_ignore(root):
         issues.append(_issue("warning", "scratchpad-not-ignored", ".gitignore"))
+    if not has_task_backup_ignore(root):
+        issues.append(_issue("warning", "task-backups-not-ignored", ".gitignore"))
     if legacy_scratchpad_path(root).exists():
         issues.append(_issue("warning", "legacy-scratchpad-present", LEGACY_SCRATCHPAD_RELATIVE_PATH))
 
@@ -194,6 +196,8 @@ def run_doctor(root: Path) -> Dict[str, Any]:
     if wiki.exists():
         link_sources: dict[str, set[str]] = {}
         for path in wiki.rglob("*.md"):
+            if ".backup" in path.parts:
+                continue
             try:
                 text = path.read_text(encoding="utf-8")
             except UnicodeDecodeError:

@@ -17,4 +17,6 @@ debian/*.substvars
 
 # Lliki local LLM handover state
 /wiki/tasks/scratchpad.md
+# Lliki generated task backups
+/wiki/tasks/.backup/
 CLAUDE.md

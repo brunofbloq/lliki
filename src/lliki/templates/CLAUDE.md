@@ -54,6 +54,9 @@ Before editing, understand the active task's goal, scope, constraints,
 acceptance criteria, and expected evidence. Make the smallest coherent change
 that satisfies the request. Avoid unrelated refactors, formatting sweeps,
 renames, dependency upgrades, generated-file churn, and cleanup outside scope.
+Keep task acceptance criteria stable during execution; record checkpoint
+progress in `wiki/tasks/scratchpad.md` instead of adding checkbox churn to the
+task file.
 
 Project commands and toolchain procedures belong in
 `wiki/docs/development-workflow.md`. Project-specific protected paths, generated
@@ -82,7 +85,7 @@ edit the wiki merely to update a timestamp.
 
 Apply focused changes only:
 
-- update the active task with outcome and evidence;
+- update the active task with a concise final result and validation summary;
 - append an accepted decision only when a real decision was made;
 - append a lesson only when the finding is confirmed and reusable;
 - update maintained documentation only when durable project truth changed;
@@ -96,8 +99,9 @@ contradiction rules belong in `wiki/wiki-rules.md`.
 
 A task is complete when its acceptance criteria are met with traceable evidence,
 applicable validation has been performed or omissions are explicit, the diff is
-focused, durable project knowledge is current, the dashboard is refreshed when
-needed, and the scratchpad is reset.
+focused, durable project knowledge is current, the task has a concise result
+and validation summary, the dashboard is refreshed when needed, and the
+scratchpad is reset.
 
 The final report must identify changed files, validation performed, verified
 results, omitted checks, remaining assumptions or risks, and follow-up work.

@@ -19,7 +19,7 @@ The coding agent or human owns semantic work:
 - architecture decisions;
 - root-cause interpretation;
 - lessons learned;
-- task outcomes and evidence;
+- concise task outcomes and validation summaries;
 - maintained project documentation.
 
 ## Context strategy
@@ -51,6 +51,8 @@ Mechanical refreshes may run without an LLM and should be idempotent.
 `lliki update` is the deterministic migration command for existing repositories.
 It updates safe managed content, creates missing local handover files, refreshes
 the dashboard, and reports semantic migration work for humans or LLM agents.
+Generated task dashboard backups are stored in `wiki/tasks/.backup/` so task
+routing stays compact.
 
 ## Scratchpad
 
@@ -59,6 +61,14 @@ non-authoritative. It stores compact handover/debug context for one active task
 and one writing agent per worktree. It may grow during active debugging, should
 be compacted when stale details accumulate, and is reset when the task is
 completed.
+
+## Task files
+
+Task files are stable specifications plus concise final results. During active
+work, checkpoint progress, blockers, and next actions belong in
+`wiki/tasks/scratchpad.md`; durable rationale belongs in `wiki/decisions.md`;
+reusable findings belong in `wiki/lessons_learned.md`. Lliki does not create a
+`wiki/tasks/archive/` folder.
 
 Lliki never creates `.lliki/`, `state.json`, or runtime logs. Existing `.lliki/`
 directories are reported as legacy local state and left for the user to remove

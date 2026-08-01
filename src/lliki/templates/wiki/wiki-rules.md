@@ -25,6 +25,8 @@ Each piece of project knowledge should have one authoritative home.
 - Confirmed reusable findings belong in `wiki/lessons_learned.md`.
 - Temporary active execution and handover context belongs in
   `wiki/tasks/scratchpad.md`.
+- Task files preserve stable intent and concise final outcomes; do not use them
+  as execution logs.
 
 Reference existing knowledge with links instead of copying it into multiple
 files.
@@ -57,6 +59,19 @@ Use for normal engineering and coding requests.
 6. Record current handover details only in the scratchpad.
 7. Promote only validated durable conclusions.
 8. Do not update the wiki merely because files were read or commands were run.
+
+## Task Workflow
+
+Task files are stable work specifications plus final outcomes. Keep goal,
+background, required behavior, constraints, and acceptance criteria stable
+during execution. Do not check off acceptance criteria step by step during
+implementation; record temporary progress, current checkpoint, blockers, and
+next action in `wiki/tasks/scratchpad.md`.
+
+At completion, update the task status and add only a concise result and
+validation summary. Link to `wiki/decisions.md` and `wiki/lessons_learned.md`
+when durable rationale or reusable findings were promoted there. Do not create
+`wiki/tasks/archive/`.
 
 ## Scratchpad Workflow
 
@@ -95,7 +110,8 @@ wiki.
 Use at task completion or when a conclusion becomes durable.
 
 1. Verify acceptance criteria and validation evidence.
-2. Update the task's overall status and concise final result.
+2. Update the task's overall status, concise final result, and validation
+   summary.
 3. Promote accepted rationale to `wiki/decisions.md` only when a real decision
    was made.
 4. Promote reusable confirmed findings to `wiki/lessons_learned.md`.
@@ -103,7 +119,8 @@ Use at task completion or when a conclusion becomes durable.
 6. Resolve or clearly mark affected exploratory material.
 7. Refresh the generated task dashboard when task metadata changed.
 8. Reset `wiki/tasks/scratchpad.md` to its inactive template.
-9. Do not copy scratchpad history into the completed task.
+9. Do not copy scratchpad history or long evidence dumps into the completed
+   task.
 
 ## Provenance
 

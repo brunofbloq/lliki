@@ -35,9 +35,9 @@ CLAUDE.md
 wiki/
 ├── index.md
 ├── wiki-rules.md
-├── scratchpad.md
 ├── tasks/
-│   └── dashboard.md
+│   ├── dashboard.md
+│   └── scratchpad.md
 ├── decisions.md
 ├── lessons_learned.md
 ├── exploratory/
@@ -85,12 +85,6 @@ pipx install lliki
 
 ```bash
 python -m pip install lliki
-```
-
-### Homebrew
-
-```bash
-brew install brunofbloq/tap/lliki
 ```
 
 ### GitHub development version
@@ -268,6 +262,12 @@ updated: 2026-07-31
 `lliki tasks refresh` generates `wiki/tasks/dashboard.md` without an LLM.
 `wiki/index.md` remains a stable knowledge map and is not mutated by dashboard
 refreshes. The legacy `--update-index` option is accepted as a deprecated no-op.
+Dashboard backups are stored under `wiki/tasks/.backup/`, which is ignored by
+Git.
+
+Task files should keep stable intent, constraints, and final outcomes. Use
+`wiki/tasks/scratchpad.md` for temporary progress and checkpoints; use
+`wiki/decisions.md` and `wiki/lessons_learned.md` for durable history.
 
 ## Safe update behavior
 
@@ -275,7 +275,8 @@ refreshes. The legacy `--update-index` option is accepted as a deprecated no-op.
 - Managed sections are identified by HTML comment markers.
 - Existing `CLAUDE.md` content is preserved; the stable managed contract is
   appended when no marker exists.
-- Backups are created before managed updates.
+- Backups are created before managed updates; dashboard backups are kept in
+  `wiki/tasks/.backup/`.
 - Decisions and lessons use append-only files.
 - Context-sensitive wiki files are created with explicit `Needs validation`
   markers for LLM or human initialization.

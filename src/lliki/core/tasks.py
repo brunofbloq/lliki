@@ -21,6 +21,7 @@ SUPPORTED_STATUSES = {
     "canceled",
 }
 IGNORED_TASK_FILENAMES = {"dashboard.md", "scratchpad.md"}
+DASHBOARD_BACKUP_DIRNAME = ".backup"
 
 _FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
@@ -36,7 +37,7 @@ class TaskRecord:
 
     @property
     def link(self) -> str:
-        return f"[[tasks/{self.path.stem}|{self.task_id} — {self.title}]]"
+        return f"[[tasks/{self.path.stem}|{self.task_id} - {self.title}]]"
 
 
 def parse_frontmatter(path: Path) -> Optional[TaskRecord]:
@@ -62,13 +63,21 @@ def parse_frontmatter(path: Path) -> Optional[TaskRecord]:
     )
 
 
+def _is_task_candidate(path: Path) -> bool:
+    return (
+        path.name not in IGNORED_TASK_FILENAMES
+        and ".backup" not in path.parts
+        and ".bak." not in path.name
+    )
+
+
 def load_tasks(root: Path) -> List[TaskRecord]:
     task_dir = root / "wiki" / "tasks"
     if not task_dir.exists():
         return []
     records: List[TaskRecord] = []
     for path in sorted(task_dir.glob("*.md")):
-        if path.name in IGNORED_TASK_FILENAMES:
+        if not _is_task_candidate(path):
             continue
         record = parse_frontmatter(path)
         if record:
@@ -84,7 +93,7 @@ def _section(title: str, tasks: Iterable[TaskRecord], empty: str = "None.") -> l
         lines.extend([f"- {empty}", ""])
     else:
         for task in items:
-            suffix = f" — priority: {task.priority}" if task.priority not in {"", "normal"} else ""
+            suffix = f" - priority: {task.priority}" if task.priority not in {"", "normal"} else ""
             lines.append(f"- {task.link}{suffix}")
         lines.append("")
     return lines
@@ -95,13 +104,10 @@ def render_dashboard(tasks: List[TaskRecord]) -> str:
         "Active": [t for t in tasks if t.status in {"active", "in-progress", "in_progress"}],
         "Blocked": [t for t in tasks if t.status == "blocked"],
         "Planned": [t for t in tasks if t.status in {"planned", "todo", "backlog"}],
-        "Recently Completed": [t for t in tasks if t.status in {"completed", "done"}][-10:],
     }
     lines = [
         "<!-- lliki:generated:start id=task-dashboard -->",
         "# Task Dashboard",
-        "",
-        "> Generated from YAML front matter in `wiki/tasks/*.md`.",
         "",
     ]
     for title, items in groups.items():
@@ -110,9 +116,31 @@ def render_dashboard(tasks: List[TaskRecord]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _migrate_dashboard_backups(task_dir: Path, *, dry_run: bool = False) -> list[str]:
+    moved: list[str] = []
+    if not task_dir.exists():
+        return moved
+    backup_dir = task_dir / DASHBOARD_BACKUP_DIRNAME
+    for path in sorted(task_dir.glob("dashboard.md.bak.*")):
+        destination = backup_dir / path.name
+        moved.append(destination.as_posix())
+        if dry_run:
+            continue
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        if destination.exists():
+            if destination.read_bytes() == path.read_bytes():
+                path.unlink()
+                continue
+            raise FileExistsError(f"Refusing to overwrite existing backup: {destination}")
+        path.replace(destination)
+    return moved
+
+
 def refresh_dashboard(root: Path, update_index: bool = False, dry_run: bool = False) -> dict:
     tasks = load_tasks(root)
-    dashboard_path = root / "wiki" / "tasks" / "dashboard.md"
+    task_dir = root / "wiki" / "tasks"
+    moved_backups = _migrate_dashboard_backups(task_dir, dry_run=dry_run)
+    dashboard_path = task_dir / "dashboard.md"
     rendered = render_dashboard(tasks)
     changed = False
     backup = None
@@ -125,7 +153,7 @@ def refresh_dashboard(root: Path, update_index: bool = False, dry_run: bool = Fa
         if replaced:
             changed = True
             if not dry_run:
-                backup = backup_file(dashboard_path)
+                backup = backup_file(dashboard_path, dashboard_path.parent / DASHBOARD_BACKUP_DIRNAME)
                 atomic_write(dashboard_path, updated)
     else:
         changed = True
@@ -140,5 +168,6 @@ def refresh_dashboard(root: Path, update_index: bool = False, dry_run: bool = Fa
         "dashboard_changed": changed,
         "index_changed": False,
         "backup": str(backup) if backup else None,
+        "moved_backups": moved_backups,
         "warnings": warnings,
     }

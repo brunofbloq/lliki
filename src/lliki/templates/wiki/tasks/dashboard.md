@@ -1,8 +1,6 @@
 <!-- lliki:generated:start id=task-dashboard -->
 # Task Dashboard
 
-> Generated from YAML front matter in `wiki/tasks/*.md`.
-
 ## Active
 
 - None.
@@ -12,10 +10,6 @@
 - None.
 
 ## Planned
-
-- None.
-
-## Recently Completed
 
 - None.
 

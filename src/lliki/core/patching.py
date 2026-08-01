@@ -44,9 +44,10 @@ def append_section(existing: str, template: str, section_id: str) -> str:
     return f"{stripped}\n\n{section}\n" if stripped else f"{section}\n"
 
 
-def backup_file(path: Path) -> Path:
+def backup_file(path: Path, backup_dir: Path | None = None) -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-    backup = path.with_name(f"{path.name}.bak.{stamp}")
+    backup = (backup_dir or path.parent) / f"{path.name}.bak.{stamp}"
+    backup.parent.mkdir(parents=True, exist_ok=True)
     backup.write_bytes(path.read_bytes())
     return backup
 

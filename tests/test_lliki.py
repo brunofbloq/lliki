@@ -50,6 +50,7 @@ class LlikiTests(unittest.TestCase):
             self.assertTrue((root / "wiki/index.md").exists())
             self.assertTrue((root / "wiki/tasks/scratchpad.md").exists())
             self.assertIn("/wiki/tasks/scratchpad.md", (root / ".gitignore").read_text(encoding="utf-8"))
+            self.assertIn("/wiki/tasks/.backup/", (root / ".gitignore").read_text(encoding="utf-8"))
             self.assertFalse((root / ".lliki").exists())
             self.assertIn("embedded-systems-architect", data["prompts"][0])
             self.assertNotIn("embedded-systems-architect", (root / "CLAUDE.md").read_text())
@@ -111,8 +112,49 @@ class LlikiTests(unittest.TestCase):
             self.assertEqual(result["task_count"], 1)
             self.assertFalse(result["index_changed"])
             self.assertIn("deprecated", result["warnings"][0])
-            self.assertIn("HWRD-115", (root / "wiki/tasks/dashboard.md").read_text())
+            dashboard = (root / "wiki/tasks/dashboard.md").read_text()
+            self.assertIn("HWRD-115", dashboard)
+            self.assertNotIn("Recently Completed", dashboard)
             self.assertNotIn("HWRD-115", (root / "wiki/index.md").read_text())
+
+    def test_dashboard_backups_are_kept_in_backup_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            task = root / "wiki/tasks/HWRD-115-sensor.md"
+            task.write_text(
+                "---\nid: HWRD-115\ntitle: Sensor bring-up\nstatus: active\npriority: high\n---\n# Task\n",
+                encoding="utf-8",
+            )
+            result = refresh_dashboard(root)
+            backup = Path(result["backup"])
+            self.assertEqual(backup.parent, root / "wiki/tasks/.backup")
+            self.assertTrue(backup.exists())
+            self.assertEqual(list((root / "wiki/tasks").glob("dashboard.md.bak.*")), [])
+
+    def test_dashboard_refresh_moves_existing_backups(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            old_backup = root / "wiki/tasks/dashboard.md.bak.old"
+            old_backup.write_text("old backup\n", encoding="utf-8")
+            result = refresh_dashboard(root)
+            moved = root / "wiki/tasks/.backup/dashboard.md.bak.old"
+            self.assertFalse(old_backup.exists())
+            self.assertEqual(moved.read_text(encoding="utf-8"), "old backup\n")
+            self.assertIn(moved.as_posix(), result["moved_backups"])
+
+    def test_dashboard_refresh_dry_run_does_not_move_backups(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            old_backup = root / "wiki/tasks/dashboard.md.bak.old"
+            old_backup.write_text("old backup\n", encoding="utf-8")
+            result = refresh_dashboard(root, dry_run=True)
+            self.assertTrue(old_backup.exists())
+            self.assertFalse((root / "wiki/tasks/.backup").exists())
+            expected = (root / "wiki/tasks/.backup/dashboard.md.bak.old").as_posix()
+            self.assertIn(expected, result["moved_backups"])
 
     def test_template_export_and_validation(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -120,6 +162,14 @@ class LlikiTests(unittest.TestCase):
             export_built_in_templates(destination)
             self.assertTrue((destination / "CLAUDE.md").exists())
             self.assertEqual(validate_template_pack(destination), [])
+
+    def test_docs_prefer_scratchpad_progress_and_concise_task_completion(self):
+        root = Path(__file__).resolve().parents[1]
+        rules = (root / "src/lliki/templates/wiki/wiki-rules.md").read_text(encoding="utf-8")
+        prompt = (root / "src/lliki/templates/prompts/complete-task.md").read_text(encoding="utf-8")
+        self.assertIn("Do not check off acceptance criteria step by step", rules)
+        self.assertIn("concise final result and validation summary", prompt)
+        self.assertIn("Do not copy scratchpad history or long evidence dumps", prompt)
 
     def test_custom_template_can_update_only_managed_claude_section(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -156,8 +206,21 @@ class LlikiTests(unittest.TestCase):
             root = Path(temp)
             initialize_repository(root, SetupConfig(), interactive=False, yes=True)
             report = run_doctor(root)
+            codes = {issue["code"] for issue in report["issues"]}
+            self.assertNotIn("scratchpad-not-ignored", codes)
+            self.assertNotIn("task-backups-not-ignored", codes)
             broken = [i for i in report["issues"] if i["code"] == "broken-wiki-link"]
             self.assertEqual(broken, [])
+
+    def test_doctor_ignores_task_backup_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            backup_dir = root / "wiki/tasks/.backup"
+            backup_dir.mkdir()
+            (backup_dir / "noisy.md").write_text("[[missing-page]]\n", encoding="utf-8")
+            report = run_doctor(root)
+            self.assertNotIn("broken-wiki-link", {issue["code"] for issue in report["issues"]})
 
     def test_legacy_inspection_does_not_report_wiki_tasks(self):
         with tempfile.TemporaryDirectory() as temp:

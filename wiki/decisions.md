@@ -57,6 +57,22 @@ This file is append-only. Supersede decisions; do not erase history.
   `tests/test_lliki.py`.
 - **Related tasks:** [[tasks/LLIKI-005-task-scratchpad-path]]
 
+## DEC-004: Keep Task Routing Token-Cheap
+
+- **Date:** 2026-08-01
+- **Status:** Accepted
+- **Context:** Task routing should stay cheap for agents and friendly to
+  concurrent work.
+- **Options considered:** Keep completed history in `dashboard.md`; add a
+  task archive folder; keep the dashboard focused on current routing only.
+- **Decision:** Generate a compact dashboard with active, blocked, and planned
+  tasks only. Store dashboard backups in `wiki/tasks/.backup/`, keep temporary
+  execution progress in `wiki/tasks/scratchpad.md`, and keep durable history in
+  decisions, lessons, and concise completed task results.
+- **Consequences:** Agents read less task history by default; completed tasks
+  remain available directly; backup files no longer pollute task navigation.
+- **Related tasks:** [[tasks/LLIKI-006-token-cheap-task-workflow]]
+
 <!--
 ## DEC-001: Decision title
 
