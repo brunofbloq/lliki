@@ -1,19 +1,56 @@
 # Lliki
 
-`lliki` is a local CLI that creates and maintains a low-token, model-neutral project wiki for humans and coding tools. The normal user workflow remains simple: initialize the
-repository once, print the recommended LLM onboarding prompt, and then work with
-Claude, Hermes, or another coding agent normally.
+`lliki` is local continuity infrastructure for LLM-assisted software
+development. It helps coding agents recover after context loss, load only the
+context they need, avoid repeated investigation, and preserve engineering
+knowledge as a repository evolves.
 
-The application performs deterministic file mechanics. The LLM remains
-responsible for semantic engineering decisions and project documentation.
+The implementation is a small repository wiki plus deterministic CLI commands.
+The product is not "another docs generator"; it is a way to keep humans and
+coding LLMs oriented during real development on non-trivial codebases.
 
-Lliki does not call an LLM, require API credentials, or transmit repository content by default. Optional repository-local integrations let coding agents use its deterministic wiki-management commands.
+Lliki does not call an LLM, require API credentials, or transmit repository
+content by default. It performs local file mechanics; the human or coding agent
+still owns semantic engineering decisions.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/brunofbloq/lliki/main/docs/assets/lliki-ascii.png" alt="Lliki ASCII logo" width="760">
 </p>
 
-## Default setup
+## What Lliki Solves
+
+- Recover after LLM compaction, session resets, or agent switches.
+- Minimize whole-repo and whole-wiki context loading.
+- Prevent repeated debugging and rediscovery.
+- Preserve durable engineering decisions and lessons.
+- Keep agent behavior consistent as code, tasks, and docs change.
+
+## How Lliki Works
+
+- `wiki/tasks/scratchpad.md` is ignored local resume memory for the active task.
+- `wiki/index.md` is the stable knowledge map for new work or workstream
+  switches.
+- `wiki/tasks/dashboard.md` is a compact generated routing index for current
+  work.
+- `wiki/decisions.md` and `wiki/lessons_learned.md` hold durable engineering
+  memory.
+- `lliki context`, `lliki doctor`, `lliki update`, and `lliki tasks refresh`
+  provide deterministic, token-free maintenance.
+
+The normal agent flow is:
+
+```text
+Resume known work:
+  scratchpad -> task file -> Git verification -> focus files
+
+Start or switch work:
+  index -> dashboard/docs -> focused source files
+
+Complete work:
+  task result -> decisions/lessons/docs -> dashboard refresh -> scratchpad reset
+```
+
+## Default Setup
 
 Run:
 
@@ -24,8 +61,8 @@ lliki init
 The TUI offers:
 
 ```text
-[1] Default — create/repair wiki and update CLAUDE.md
-[2] Custom  — repository-local integrations
+[1] Default - create/repair wiki and update CLAUDE.md
+[2] Custom  - repository-local integrations
 ```
 
 Default setup creates:
@@ -33,45 +70,30 @@ Default setup creates:
 ```text
 CLAUDE.md
 wiki/
-├── index.md
-├── wiki-rules.md
-├── tasks/
-│   ├── dashboard.md
-│   └── scratchpad.md
-├── decisions.md
-├── lessons_learned.md
-├── exploratory/
-│   └── index.md
-└── docs/
-    ├── README.md
-    ├── project-overview.md
-    ├── development-workflow.md
-    └── repository-rules.md
+|-- index.md
+|-- wiki-rules.md
+|-- tasks/
+|   |-- dashboard.md
+|   `-- scratchpad.md
+|-- decisions.md
+|-- lessons_learned.md
+|-- exploratory/
+|   `-- index.md
+`-- docs/
+    |-- README.md
+    |-- project-overview.md
+    |-- development-workflow.md
+    `-- repository-rules.md
 ```
 
 It also adds `/wiki/tasks/scratchpad.md` to `.gitignore`, then prints the LLM
-initialization prompt and its estimated token usage in the terminal. 
+initialization prompt and its estimated token usage.
 
 Non-interactive equivalent:
 
 ```bash
 lliki init --default --yes
 ```
-
-
-## Key design decisions
-
-- `wiki/index.md` is the stable knowledge map for new work and workstream switches.
-- The default setup creates only the wiki and safely creates or patches
-  `CLAUDE.md`.
-- `wiki/tasks/scratchpad.md` is created by default as ignored local handover state.
-- Hooks and agent integrations are opt-in.
-- All Markdown templates and suggested prompts are editable files, not Python
-  string literals.
-- Every suggested LLM prompt includes a prompt-token estimate and expected total
-  call range.
-- Permanent wiki updates are event-driven: after meaningful task events and at
-  the end of completed user requests, only when project truth changed.
 
 ## Installation
 
@@ -100,34 +122,13 @@ python -m pip install -e .
 lliki --version
 ```
 
-### Local pipx install
-
-```bash
-pipx install .
-```
-
 The same installed `lliki` command works in Bash, PowerShell, CMD, macOS,
 Linux, and Windows.
 
-### Windows PowerShell helper
+## Custom Setup
 
-```powershell
-.\scripts\install.ps1 -Source .
-```
-
-### Bash helper
-
-```bash
-./scripts/install.sh .
-```
-
-Homebrew and Debian packaging templates are under `packaging/`.
-
-
-## Custom setup
-
-Custom setup uses the same `wiki/` root and `wiki/tasks/scratchpad.md` handover file.
-It can opt into repository-local integrations:
+Custom setup uses the same `wiki/` root and `wiki/tasks/scratchpad.md`
+handover file. It can opt into repository-local integrations:
 
 - generic `AGENTS.md` integration;
 - repository-local Claude skill and optional hooks;
@@ -140,23 +141,23 @@ lliki init --custom --integrate generic,claude,hermes --yes
 ```
 
 The legacy `--runtime` and `--scratchpad` options are deprecated. New
-initialization never creates `.lliki/`, `state.json`, or logs.
+initialization never creates `.lliki/`, `state.json`, or runtime logs.
 
-## Normal agent workflow
+## Agent Workflow
 
 The user does not need to run maintenance commands during normal development.
 Generated instructions teach the coding agent to:
 
-1. begin new work from `wiki/index.md`;
-2. resume active local work from `wiki/tasks/scratchpad.md`;
+1. resume active local work from `wiki/tasks/scratchpad.md`;
+2. begin new work from `wiki/index.md`;
 3. load only relevant context;
-4. update project knowledge after meaningful events and completed requests;
+4. update durable project knowledge after meaningful events;
 5. use `lliki` internally for mechanical checks when efficient;
 6. avoid whole-wiki reads and whole-file rewrites.
 
 Manual commands remain available when a token-free structural check is useful.
 
-## Token-free commands
+## Token-Free Commands
 
 ```bash
 lliki inspect
@@ -179,11 +180,11 @@ lliki update
 ```
 
 The command applies deterministic safe updates, creates missing
-`wiki/tasks/scratchpad.md`, fixes the scratchpad `.gitignore` rule, refreshes the task
-dashboard, and runs structural checks. It reports legacy `.lliki/` state and
-mutable `wiki/index.md` sections without deleting or rewriting them.
+`wiki/tasks/scratchpad.md`, fixes the scratchpad `.gitignore` rule, refreshes
+the task dashboard, and runs structural checks. It reports legacy `.lliki/`
+state and mutable `wiki/index.md` sections without deleting or rewriting them.
 
-## Suggested LLM prompts
+## Suggested LLM Prompts
 
 ```bash
 lliki prompt list
@@ -200,7 +201,7 @@ Every prompt prints:
 - expected total call range;
 - a reminder that actual use depends on model and loaded repository context.
 
-## Editing templates like documents
+## Editing Templates
 
 Export the built-in template pack:
 
@@ -208,8 +209,8 @@ Export the built-in template pack:
 lliki templates export ./my-lliki-templates
 ```
 
-Edit the Markdown files directly, including `CLAUDE.md`, wiki pages, integration
-instructions, and prompts. Validate them:
+Edit the Markdown files directly, including `CLAUDE.md`, wiki pages,
+integration instructions, and prompts. Validate them:
 
 ```bash
 lliki templates validate --template-dir ./my-lliki-templates
@@ -245,7 +246,7 @@ $env:LLIKI_TEMPLATE_DIR = "$PWD\my-lliki-templates"
 lliki init
 ```
 
-## Task metadata and dashboard generation
+## Task Metadata and Dashboard Generation
 
 Task files can use YAML front matter:
 
@@ -261,15 +262,15 @@ updated: 2026-07-31
 
 `lliki tasks refresh` generates `wiki/tasks/dashboard.md` without an LLM.
 `wiki/index.md` remains a stable knowledge map and is not mutated by dashboard
-refreshes. The legacy `--update-index` option is accepted as a deprecated no-op.
-Dashboard backups are stored under `wiki/tasks/.backup/`, which is ignored by
-Git.
+refreshes. The legacy `--update-index` option is accepted as a deprecated
+no-op. Dashboard backups are stored under `wiki/tasks/.backup/`, which is
+ignored by Git.
 
 Task files should keep stable intent, constraints, and final outcomes. Use
 `wiki/tasks/scratchpad.md` for temporary progress and checkpoints; use
 `wiki/decisions.md` and `wiki/lessons_learned.md` for durable history.
 
-## Safe update behavior
+## Safe Update Behavior
 
 - Existing content is never blindly replaced.
 - Managed sections are identified by HTML comment markers.
@@ -281,7 +282,7 @@ Task files should keep stable intent, constraints, and final outcomes. Use
 - Context-sensitive wiki files are created with explicit `Needs validation`
   markers for LLM or human initialization.
 
-## Repository-local agent integrations
+## Repository-Local Agent Integrations
 
 ### Claude Code
 
@@ -305,7 +306,7 @@ same wiki entry point and use the CLI internally when efficient.
 
 Custom setup can create `AGENTS.md` for compatible coding agents.
 
-## Development and tests
+## Development and Release
 
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests -v
@@ -314,8 +315,10 @@ python -m pip wheel . --no-deps --wheel-dir dist
 ```
 
 See [docs/DESIGN.md](docs/DESIGN.md) for architecture and update ownership.
+See [docs/RELEASE_PROCESS.md](docs/RELEASE_PROCESS.md) for TestPyPI, Twine,
+tagging, and PyPI release steps.
 
-## Interactive welcome
+## Interactive Welcome
 
 Running `lliki` or `lliki init` in an interactive terminal displays the Lliki
 ASCII welcome, a concise project-purpose statement, and the author. The banner

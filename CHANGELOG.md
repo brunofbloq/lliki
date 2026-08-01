@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.1 - 2026-08-1
+## 0.3.0 - 2026-08-01
 
 - Refactored Lliki around a stable `wiki/index.md` knowledge map and default
   ignored `wiki/tasks/scratchpad.md` handover file.
