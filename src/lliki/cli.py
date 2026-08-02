@@ -201,9 +201,9 @@ def command_init(args: argparse.Namespace) -> int:
     force_mode = "default" if args.default else "custom" if args.custom else None
     if interactive:
         config = _interactive_config(root, force_mode, bool(found["legacy_dirs"]))
-        print("\nSelected configuration:")
-        print(f"  Setup: {config.setup_mode}")
-        print(f"  Integrations: {', '.join(config.integrations) if config.integrations else 'none'}")
+        #print("\nSelected configuration:")
+        #print(f"  Setup: {config.setup_mode}")
+        #print(f"  Integrations: {', '.join(config.integrations) if config.integrations else 'none'}")
         if not _ask_yes_no("Proceed with this setup?", default=True):
             print("Cancelled.")
             return 1

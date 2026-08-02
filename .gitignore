@@ -15,6 +15,11 @@ debian/*.substvars
 *.deb
 *.bak.*
 
+# Obsidian vault settings and cache
+wiki/.obsidian/
+.obsidian/
+*.canvas
+
 # Lliki local LLM handover state
 /wiki/tasks/scratchpad.md
 # Lliki generated task backups

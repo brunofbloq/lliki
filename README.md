@@ -27,27 +27,26 @@ still owns semantic engineering decisions.
 
 ## How Lliki Works
 
-- `wiki/tasks/scratchpad.md` is ignored local resume memory for the active task.
 - `wiki/index.md` is the stable knowledge map for new work or workstream
   switches.
-- `wiki/tasks/dashboard.md` is a compact generated routing index for current
-  work.
 - `wiki/decisions.md` and `wiki/lessons_learned.md` hold durable engineering
   memory.
-- `lliki context`, `lliki doctor`, `lliki update`, and `lliki tasks refresh`
-  provide deterministic, token-free maintenance.
+- `wiki/tasks/` is the local folder where the tasks and related helper files will live.
+  - `wiki/tasks/scratchpad.md` is ignored local resume memory for the active task.
+  - `wiki/tasks/dashboard.md` is a compact generated routing index for current
+    work.
 
-The normal agent flow is:
+The new agent flow is:
 
 ```text
-Resume known work:
-  scratchpad -> task file -> Git verification -> focus files
-
 Start or switch work:
-  index -> dashboard/docs -> focused source files
+  wiki index -> task dashboard -> focused source files
+
+Resume known work:
+  scratchpad -> task file -> git verification -> focus source files
 
 Complete work:
-  task result -> decisions/lessons/docs -> dashboard refresh -> scratchpad reset
+  task result -> decisions/lessons/docs -> task dashboard refresh -> scratchpad reset
 ```
 
 ## Default Setup

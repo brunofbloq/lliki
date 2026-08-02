@@ -26,7 +26,6 @@ class LlikiTests(unittest.TestCase):
     def test_welcome_banner_contains_branding_and_compact_fallback(self):
         large = render_welcome(100)
         compact = render_welcome(60)
-        self.assertIn("Author: brunofbloq", large)
         self.assertIn("Local-first repository wiki", large)
         self.assertIn("_       _", compact)
         self.assertEqual(AUTHOR, "brunofbloq")

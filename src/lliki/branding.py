@@ -6,6 +6,7 @@ import os
 import shutil
 import sys
 from typing import TextIO
+from lliki import __version__
 
 
 LARGE_LOGO = r"""
@@ -28,7 +29,7 @@ COMPACT_LOGO = r"""
 PURPOSE = "Local-first repository wiki setup and maintenance for humans and coding tools."
 PRIVACY = "No LLM API required; repository content stays local by default."
 AUTHOR = "brunofbloq"
-
+VERSION = __version__
 
 def banner_enabled() -> bool:
     """Return whether the interactive welcome banner is enabled."""
@@ -48,7 +49,7 @@ def render_welcome(width: int | None = None) -> str:
             "",
             PURPOSE,
             PRIVACY,
-            f"Author: {AUTHOR}",
+            f"Version: {VERSION}",
             rule,
         )
     )

@@ -7,7 +7,3 @@ maintained documentation.
 ## Active Investigations
 
 - None.
-
-## Completed Investigations
-
-- None.

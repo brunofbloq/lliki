@@ -1,5 +1,9 @@
 # Changelog
 
+## UNRELEASED - 2026-08-02
+- Change the TUI messages for more specific and accurate setup
+- Improved README.md for better scope
+
 ## 0.3.0 - 2026-08-01
 
 - Refactored Lliki around a stable `wiki/index.md` knowledge map and default
