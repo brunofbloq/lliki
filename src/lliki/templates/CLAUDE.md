@@ -19,8 +19,8 @@ When resuming active local work:
 For new work, a missing or inactive scratchpad, or a workstream switch:
 
 1. Read this stable contract.
-2. Start from `wiki/index.md`.
-3. Use the documentation index, task dashboard, or exploratory index to find
+2. Start from `wiki/wiki-index.md`.
+3. Use a named folder index (docs-index, tasks-index, or exploratory-index) to find
    relevant context.
 4. Read only required pages and repository files.
 5. Initialize or replace the scratchpad for the selected active task.
@@ -72,7 +72,8 @@ generic specialist guidance.
 
 When the `lliki` CLI is available, agents may use it internally for
 mechanical operations such as structural inspection, managed-template checks,
-task-dashboard refresh, safe appends, context routing, and wiki validation. The
+index refresh, safe appends, context routing, and wiki validation.
+The
 user should not need to invoke these commands during normal development.
 
 ## Wiki Updates
@@ -89,7 +90,7 @@ Apply focused changes only:
 - append an accepted decision only when a real decision was made;
 - append a lesson only when the finding is confirmed and reusable;
 - update maintained documentation only when durable project truth changed;
-- refresh the generated task dashboard when task metadata changed;
+- refresh the generated tasks index when task metadata changed;
 - reset `wiki/tasks/scratchpad.md` at task completion.
 
 Detailed ingest, query, lint, promotion, provenance, staleness, and
@@ -100,7 +101,8 @@ contradiction rules belong in `wiki/wiki-rules.md`.
 A task is complete when its acceptance criteria are met with traceable evidence,
 applicable validation has been performed or omissions are explicit, the diff is
 focused, durable project knowledge is current, the task has a concise result
-and validation summary, the dashboard is refreshed when needed, and the
+and validation summary, the tasks index is refreshed when
+needed, and the
 scratchpad is reset.
 
 The final report must identify changed files, validation performed, verified

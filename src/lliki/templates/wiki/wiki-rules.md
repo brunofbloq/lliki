@@ -8,11 +8,60 @@ file defines how project knowledge moves through the wiki.
 
 ## Entry Points
 
-- Resume active local work from `wiki/tasks/scratchpad.md` when it identifies an
-  active task.
-- Start new work or switch workstreams from `wiki/index.md`.
-- Use `wiki/tasks/dashboard.md` for task navigation and overall status.
-- Read only the pages and repository files relevant to the request.
+- Resume active local work from `wiki/tasks/scratchpad.md`; `wiki/tasks/tasks-index.md`
+  routes the current task and lists all tasks by status.
+- Start new work or switch workstreams from `wiki/wiki-index.md`.
+- Use `wiki/tasks/tasks-index.md` for task navigation and overall status.
+- Follow named folder indexes before scanning folders. Never recursively read
+  `wiki/**/*.md` unless specifically necessary.
+
+## Folder Index Contract
+
+Every directory inside `wiki/` has one named index:
+
+```text
+wiki/wiki-index.md
+wiki/<folder>/<folder-name>-index.md
+```
+
+- An index answers only "what exists here and where do I go next": links plus
+  optional one-token metadata. Never duplicate child content into an index.
+- Indexes are collection nodes: they link child folder indexes and documents.
+  The tasks index catalogs open and closed task files; closed entries use
+  ID-only links to keep navigation cheap. Its generated `## Current Task`
+  region routes the single scratchpad-selected task, not history.
+- Generated regions sit between
+  `<!-- lliki:generated:start id=folder-index -->` markers; manual content
+  outside them is preserved. `lliki index` regenerates them
+  deterministically without an LLM.
+- A new folder such as `wiki/research/` gets `research-index.md` automatically
+  on `lliki init`, `lliki update`, or `lliki index`.
+
+## Markdown and Obsidian Format
+
+- Open `wiki/` as the vault root. Folder indexes and generated document links
+  use ordinary `[[path/from/vault/root|optional label]]` wikilinks; backlinks
+  remain available without plugins. The CLI does not depend on Obsidian.
+- Lliki-created task, note, and exploratory documents start with YAML front
+  matter delimited by `---` lines. `type` identifies the document where
+  applicable; `title`, `created`, `updated`, and `tags` are metadata. Task
+  documents also use `id`, `status`, and `priority`. Tags are a YAML list,
+  including `[]` when empty. Keep manually authored content outside generated
+  regions; no Dataview or Templater syntax is required.
+
+## Navigation Model
+
+New work:
+
+```text
+wiki/wiki-index.md -> relevant <folder>-index.md -> relevant document
+```
+
+Resumed work:
+
+```text
+wiki/tasks/scratchpad.md -> active task -> linked knowledge
+```
 
 ## Information Placement
 
@@ -51,7 +100,7 @@ incidents, measurements, test reports, or accepted external constraints.
 Use for normal engineering and coding requests.
 
 1. Resume from `wiki/tasks/scratchpad.md` when local active work exists.
-2. Otherwise start from `wiki/index.md`.
+2. Otherwise start from `wiki/wiki-index.md`.
 3. Read only relevant wiki pages.
 4. Verify implementation-sensitive claims against current source code, tests,
    configuration, Git state, or authoritative specifications.
@@ -71,29 +120,19 @@ next action in `wiki/tasks/scratchpad.md`.
 At completion, update the task status and add only a concise result and
 validation summary. Link to `wiki/decisions.md` and `wiki/lessons_learned.md`
 when durable rationale or reusable findings were promoted there. Do not create
-`wiki/tasks/archive/`.
+`wiki/tasks/archive/`. Start a next task only after the current task satisfies
+its acceptance criteria, passes required validation, has no unresolved blocker,
+and records its final result.
 
 ## Scratchpad Workflow
 
-`wiki/tasks/scratchpad.md` is local, ignored, non-authoritative, bounded
-handover/debug context. It supports one active task and one writing agent per
-worktree. Parallel tasks should use separate worktrees.
-
-Keep at most:
-
-- one active task;
-- one concrete next action;
-- five confirmed outcomes;
-- three active blockers;
-- eight focus paths or symbols;
-- five remaining validation items.
-
-Do not store terminal transcripts, full command output, copied task
-specifications, obsolete blockers, obsolete next actions, raw reasoning, copied
-chat, or chronological checkpoint history. Append during active debugging only
-when the checkpoint, confirmed outcome, blocker, validation state, focus, next
-action, or handover state changes materially. Compact stale details when it
-grows and reset it after completion.
+`wiki/tasks/scratchpad.md` is local, ignored, non-authoritative handover
+context for one active task and one writing agent per worktree. Keep only the
+task reference, current state, one concrete next action, and blocker (or
+`None`). Raw session capture, when available, is additional provenance rather
+than a substitute for this checkpoint. Parallel tasks use separate worktrees.
+Do not store transcripts, copied task specifications, or chronological progress
+logs here. Replace stale state; reset after task completion.
 
 ## Lint Workflow
 
@@ -117,7 +156,7 @@ Use at task completion or when a conclusion becomes durable.
 4. Promote reusable confirmed findings to `wiki/lessons_learned.md`.
 5. Update `wiki/docs/` only when current validated project behavior changed.
 6. Resolve or clearly mark affected exploratory material.
-7. Refresh the generated task dashboard when task metadata changed.
+7. Refresh the generated tasks index when task metadata changed.
 8. Reset `wiki/tasks/scratchpad.md` to its inactive template.
 9. Do not copy scratchpad history or long evidence dumps into the completed
    task.

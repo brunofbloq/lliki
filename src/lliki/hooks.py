@@ -7,8 +7,8 @@ from typing import Any, Dict, Optional
 
 from .core.context import scratchpad_route
 from .core.doctor import run_doctor
+from .core.indexing import refresh_indexes
 from .core.paths import scratchpad_path
-from .core.tasks import refresh_dashboard
 
 
 def _read_input() -> Dict[str, Any]:
@@ -52,7 +52,7 @@ def run_hook(event: str, root: Optional[Path] = None) -> int:
                     "suppressOutput": True,
                 }))
         elif event in {"claude-task-completed", "claude-stop"}:
-            refresh_dashboard(root, update_index=False, dry_run=False)
+            refresh_indexes(root, ["tasks"], dry_run=False)
             run_doctor(root)
         else:
             raise ValueError(f"Unknown hook event: {event}")

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
 from . import __version__
-from .branding import banner_enabled, print_welcome
+from .branding import banner_enabled, print_welcome, render_commands_panel
 from .core.append import append_entry
 from .core.bootstrap import apply_template_pack, initialize_repository
 from .core.context import context_routes
@@ -17,7 +17,6 @@ from .core.doctor import run_doctor
 from .core.inspection import find_legacy_locations, repository_signals
 from .core.models import SetupConfig
 from .core.patching import extract_section
-from .core.paths import SCRATCHPAD_RELATIVE_PATH
 from .core.prompts import format_prompt, load_prompts
 from .core.resources import (
     export_built_in_templates,
@@ -25,8 +24,11 @@ from .core.resources import (
     read_template,
     validate_template_pack,
 )
-from .core.tasks import refresh_dashboard
+from .core.documents import create_document
+from .core.indexing import refresh_indexes
+from .core.notes import append_to_note, list_notes, new_note, search_notes, show_note
 from .core.update import run_update
+from .core.updatecheck import force_check, update_notice
 from .hooks import run_hook
 
 
@@ -145,11 +147,6 @@ def _noninteractive_config(args: argparse.Namespace) -> SetupConfig:
     )
     if args.default and advanced:
         raise ValueError("Advanced integration options require --custom")
-    if args.runtime in {"assisted", "debug"}:
-        raise ValueError(
-            f"--runtime assisted/debug is deprecated. Lliki now uses {SCRATCHPAD_RELATIVE_PATH} "
-            "for local handover and never creates .lliki runtime files."
-        )
     setup_mode = "custom" if args.custom or advanced else "default"
     if args.claude_hooks and "claude" not in integrations:
         raise ValueError("--claude-hooks requires --integrate claude")
@@ -177,7 +174,10 @@ def _show_init_result(data: dict) -> None:
     if data["integrations"]:
         print("  Integrations:")
         for item in data["integrations"]:
-            print(f"    - {item['integration']}: {', '.join(item['files'])}")
+            if item.get("message"):
+                print("    " + item["message"].replace("\n", "\n    "))
+            else:
+                print(f"    - {item['integration']}: {', '.join(item['files'])}")
     if result.warnings:
         print("  Warnings:")
         for warning in result.warnings:
@@ -209,10 +209,6 @@ def command_init(args: argparse.Namespace) -> int:
             return 1
     else:
         config = _noninteractive_config(args)
-        if args.scratchpad:
-            print(f"WARNING: --scratchpad is deprecated; {SCRATCHPAD_RELATIVE_PATH} is now created by default.", file=sys.stderr)
-        if args.runtime == "off":
-            print("WARNING: --runtime off is deprecated and now a no-op.", file=sys.stderr)
 
     data = initialize_repository(
         root,
@@ -226,20 +222,13 @@ def command_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_inspect(args: argparse.Namespace) -> int:
-    root = _root(args.root)
-    found = find_legacy_locations(root, max_depth=args.max_depth)
-    payload = {"root": str(root), "locations": found, "signals": repository_signals(root)}
-    if args.json:
-        print(json.dumps(payload, indent=2))
-    else:
-        _print_inspection(root, args.max_depth)
-    return 0
-
-
 def command_doctor(args: argparse.Namespace) -> int:
-    report = run_doctor(_root(args.root))
+    root = _root(args.root)
+    report = run_doctor(root)
+    inspection = find_legacy_locations(root, max_depth=args.max_depth)
+    signals = repository_signals(root)
     if args.json:
+        report["inspection"] = {"locations": inspection, "signals": signals}
         print(json.dumps(report, indent=2))
     else:
         summary = report["summary"]
@@ -247,6 +236,10 @@ def command_doctor(args: argparse.Namespace) -> int:
         for issue in report["issues"]:
             detail = f" ({issue['detail']})" if issue.get("detail") else ""
             print(f"- {issue['severity'].upper()}: {issue['code']}: {issue['path']}{detail}")
+        if inspection["legacy_dirs"]:
+            print("Legacy locations:")
+            for value in inspection["legacy_dirs"]:
+                print(f"- {value}")
     return 0 if report["ok"] else 2
 
 
@@ -331,12 +324,109 @@ def _result_text(result) -> str:
 
 
 def command_tasks(args: argparse.Namespace) -> int:
-    result = refresh_dashboard(
-        _root(args.root),
-        update_index=args.update_index,
-        dry_run=args.dry_run,
-    )
+    if getattr(args, "tasks_command", None) == "new":
+        result = create_document(_root(args.root), "task", args.title, tags=args.tags)
+        print(f"Created {result['path']} (id {result['id']}); wiki/tasks/tasks-index.md refreshed.")
+        return 0
+    result = refresh_indexes(_root(args.root), ["tasks"], dry_run=args.dry_run)
     print(json.dumps(result, indent=2) if args.json else _mapping_text(result))
+    return 0
+
+
+def command_index(args: argparse.Namespace) -> int:
+    folders = None if args.all else ([args.folder] if args.folder else None)
+    result = refresh_indexes(_root(args.root), folders)
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        for bucket in ("created", "refreshed", "unchanged"):
+            if result[bucket]:
+                print(f"{bucket}: " + ", ".join(result[bucket]))
+        for warning in result["warnings"]:
+            print(f"WARNING: {warning}", file=sys.stderr)
+    return 1 if result["warnings"] else 0
+
+
+def command_explore(args: argparse.Namespace) -> int:
+    result = create_document(_root(args.root), "exploratory", args.title, tags=args.tags)
+    print(f"Created {result['path']}; wiki/exploratory/exploratory-index.md refreshed.")
+    return 0
+
+
+def command_notes(args: argparse.Namespace) -> int:
+    root = _root(args.root)
+    if args.notes_command == "new":
+        result = new_note(root, args.title, tags=args.tags)
+        print(f"Created {result['path']}; {result['index_refreshed']} index refreshed.")
+        return 0
+    if args.notes_command == "list":
+        entries = list_notes(root)
+        if args.json:
+            print(json.dumps(entries, indent=2))
+        else:
+            for entry in entries:
+                print(f"{entry['path']}  {entry['title']}")
+            if not entries:
+                print("No notes.")
+        return 0
+    if args.notes_command == "show":
+        print(show_note(root, args.name))
+        return 0
+    if args.notes_command == "append":
+        content = sys.stdin.read() if args.file in {None, "-"} else Path(args.file).read_text(encoding="utf-8")
+        path = append_to_note(root, args.name, content, heading=args.heading)
+        print(f"Appended to {path}")
+        return 0
+    if args.notes_command == "search":
+        results = search_notes(root, args.term)
+        if args.json:
+            print(json.dumps(results, indent=2))
+        else:
+            for item in results:
+                print(item["path"])
+                for line in item["matches"]:
+                    print(f"  {line}")
+            if not results:
+                print(f"No matches for: {args.term}")
+        return 0
+    return 2
+
+
+def command_integration(args: argparse.Namespace) -> int:
+    root = _root(args.root)
+    markers = {
+        "generic": ("AGENTS.md", "generic-agent-contract"),
+        "claude": (".claude/skills/lliki/SKILL.md", "claude-lliki-skill"),
+        "hermes": (".hermes.md", "hermes-agent-contract"),
+    }
+    status = {}
+    for name, (target, section) in markers.items():
+        path = root / target
+        if not path.exists():
+            status[name] = "not installed"
+        elif section in path.read_text(encoding="utf-8"):
+            status[name] = "installed (managed section present)"
+        else:
+            status[name] = "installed (unmanaged file)"
+    print(json.dumps(status, indent=2) if args.json else "\n".join(f"{k}: {v}" for k, v in status.items()))
+    return 0
+
+
+def command_version(args: argparse.Namespace) -> int:
+    if args.check:
+        payload = force_check(__version__)
+        if args.json:
+            print(json.dumps(payload, indent=2))
+            return 0
+        if not payload["ok"]:
+            print(f"Update check failed: {payload['detail']}", file=sys.stderr)
+            return 1
+        if payload["update_available"]:
+            print(f"lliki {payload['current']} is installed; {payload['latest']} is available. Run: pip install -U lliki")
+        else:
+            print(f"lliki {payload['current']} is up to date.")
+        return 0
+    print(f"lliki {__version__}")
     return 0
 
 
@@ -363,10 +453,16 @@ def _show_update_result(data: dict) -> None:
             print(f"  {label}:")
             for value in values:
                 print(f"    - {value}")
-    dashboard = data["dashboard"]
-    print("  Dashboard:")
-    print(f"    - task_count: {dashboard['task_count']}")
-    print(f"    - changed: {dashboard['dashboard_changed']}")
+    migrated = data["actions"].get("migrated") or []
+    if migrated:
+        print("  Migration:")
+        for action in migrated:
+            print(f"    - {action}")
+    indexes = data["indexes"]
+    if indexes["created"] or indexes["refreshed"]:
+        print("  Indexes:")
+        print(f"    - created: {', '.join(indexes['created']) or 'none'}")
+        print(f"    - refreshed: {', '.join(indexes['refreshed']) or 'none'}")
     doctor = data["doctor"]["summary"]
     print("  Doctor:")
     print(f"    - errors: {doctor['errors']}")
@@ -392,18 +488,6 @@ def command_update(args: argparse.Namespace) -> int:
 
 
 
-def command_state(args: argparse.Namespace) -> int:
-    message = (
-        "lliki state is deprecated. Lliki no longer creates .lliki/state.json; "
-        f"use {SCRATCHPAD_RELATIVE_PATH} for local active-task handover."
-    )
-    payload = {"deprecated": True, "message": message, "scratchpad": SCRATCHPAD_RELATIVE_PATH}
-    if args.json:
-        print(json.dumps(payload, indent=2))
-    else:
-        print(message, file=sys.stderr)
-    return 2
-
 def command_append(args: argparse.Namespace) -> int:
     content = Path(args.file).read_text(encoding="utf-8") if args.file else sys.stdin.read()
     target = append_entry(_root(args.root), args.kind, content)
@@ -425,8 +509,6 @@ def build_parser() -> argparse.ArgumentParser:
     modes = init.add_mutually_exclusive_group()
     modes.add_argument("--default", action="store_true", help="Use simple default setup")
     modes.add_argument("--custom", action="store_true", help="Use custom setup")
-    init.add_argument("--runtime", choices=["off", "assisted", "debug"], default=None)
-    init.add_argument("--scratchpad", action="store_true")
     init.add_argument("--integrate", action="append", help="generic, claude, or hermes; repeatable/comma-separated")
     init.add_argument("--claude-hooks", action="store_true")
     init.add_argument("--legacy-prompt", action="store_true")
@@ -436,14 +518,9 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--max-depth", type=int, default=6)
     init.set_defaults(func=command_init)
 
-    inspect = sub.add_parser("inspect", help="Inspect wiki and legacy context locations")
-    inspect.add_argument("--root", default=".")
-    inspect.add_argument("--max-depth", type=int, default=6)
-    inspect.add_argument("--json", action="store_true")
-    inspect.set_defaults(func=command_inspect)
-
-    doctor = sub.add_parser("doctor", help="Run token-free structural wiki checks")
+    doctor = sub.add_parser("doctor", help="Structural wiki health checks plus legacy-location inspection")
     doctor.add_argument("--root", default=".")
+    doctor.add_argument("--max-depth", type=int, default=6)
     doctor.add_argument("--json", action="store_true")
     doctor.set_defaults(func=command_doctor)
 
@@ -474,16 +551,80 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--yes", "-y", action="store_true")
         p.set_defaults(func=command_templates)
 
-    tasks = sub.add_parser("tasks", help="Mechanical task dashboard operations")
-    task_sub = tasks.add_subparsers(dest="tasks_command", required=True)
-    refresh = task_sub.add_parser("refresh")
-    refresh.add_argument("--root", default=".")
-    refresh.add_argument("--update-index", action="store_true")
-    refresh.add_argument("--dry-run", action="store_true")
-    refresh.add_argument("--json", action="store_true")
-    refresh.set_defaults(func=command_tasks)
+    tasks = sub.add_parser("tasks", aliases=["task"], help="Refresh tasks-index; 'tasks new' creates a task")
+    task_sub = tasks.add_subparsers(dest="tasks_command")
+    task_new = task_sub.add_parser("new", help="Create a task document from the task template")
+    task_new.add_argument("title")
+    task_new.add_argument("--root", default=".")
+    task_new.add_argument("--tag", dest="tags", action="append")
+    task_new.set_defaults(func=command_tasks)
+    tasks.set_defaults(func=command_tasks)
+    tasks.add_argument("--root", default=".")
+    tasks.add_argument("--dry-run", action="store_true")
+    tasks.add_argument("--json", action="store_true")
 
-    context = sub.add_parser("context", help="Return bounded context routes without reading full content")
+    notes = sub.add_parser("notes", help="Notes workflow over wiki/notes")
+    notes_sub = notes.add_subparsers(dest="notes_command", required=True)
+    notes_new = notes_sub.add_parser("new")
+    notes_new.add_argument("title")
+    notes_new.add_argument("--root", default=".")
+    notes_new.add_argument("--tag", dest="tags", action="append")
+    notes_new.set_defaults(func=command_notes)
+    notes_list = notes_sub.add_parser("list")
+    notes_list.add_argument("--root", default=".")
+    notes_list.add_argument("--json", action="store_true")
+    notes_list.set_defaults(func=command_notes)
+    notes_show = notes_sub.add_parser("show")
+    notes_show.add_argument("name")
+    notes_show.add_argument("--root", default=".")
+    notes_show.set_defaults(func=command_notes)
+    notes_append = notes_sub.add_parser("append")
+    notes_append.add_argument("name")
+    notes_append.add_argument("--file")
+    notes_append.add_argument("--heading")
+    notes_append.add_argument("--root", default=".")
+    notes_append.set_defaults(func=command_notes)
+    notes_search = notes_sub.add_parser("search")
+    notes_search.add_argument("term")
+    notes_search.add_argument("--root", default=".")
+    notes_search.add_argument("--json", action="store_true")
+    notes_search.set_defaults(func=command_notes)
+
+    explore = sub.add_parser("explore", help="Exploratory work documents")
+    explore_sub = explore.add_subparsers(dest="explore_command", required=True)
+    explore_new = explore_sub.add_parser("new")
+    explore_new.add_argument("title")
+    explore_new.add_argument("--root", default=".")
+    explore_new.add_argument("--tag", dest="tags", action="append")
+    explore_new.set_defaults(func=command_explore)
+
+    index = sub.add_parser("index", help="Refresh named folder indexes")
+    index.add_argument("folder", nargs="?", help="wiki subfolder name; omit for all")
+    index.add_argument("--all", action="store_true")
+    index.add_argument("--root", default=".")
+    index.add_argument("--json", action="store_true")
+    index.set_defaults(func=command_index)
+
+    integration = sub.add_parser("integration", help="Repository-local agent integration management")
+    integration.add_argument("--root", default=".")
+    integration.add_argument("--json", action="store_true")
+    integration_sub = integration.add_subparsers(dest="integration_command")
+    integration_status = integration_sub.add_parser("status")
+    integration_status.add_argument("--root", default=".")
+    integration_status.add_argument("--json", action="store_true")
+    integration_status.set_defaults(func=command_integration)
+    integration_hook = integration_sub.add_parser("hook", help="Internal lifecycle hook invoked by agent settings")
+    integration_hook.add_argument("event", choices=["claude-session-start", "claude-task-completed", "claude-stop"])
+    integration_hook.add_argument("--root", default=".")
+    integration_hook.set_defaults(func=command_hook)
+    integration.set_defaults(func=command_integration)
+
+    version = sub.add_parser("version", help="Print the installed version, or check PyPI")
+    version.add_argument("--check", action="store_true")
+    version.add_argument("--json", action="store_true")
+    version.set_defaults(func=command_version)
+
+    context = sub.add_parser("context", help="Show agent routing state: entry, active task, folder indexes")
     context.add_argument("--root", default=".")
     context.add_argument("--json", action="store_true")
     context.set_defaults(func=command_context)
@@ -496,32 +637,11 @@ def build_parser() -> argparse.ArgumentParser:
     update.set_defaults(func=command_update)
 
 
-    state = sub.add_parser("state", help="Agent-facing lightweight resume-state operations")
-    state_sub = state.add_subparsers(dest="state_command", required=True)
-    state_show = state_sub.add_parser("show")
-    state_show.add_argument("--root", default=".")
-    state_show.add_argument("--json", action="store_true")
-    state_show.set_defaults(func=command_state)
-    state_update = state_sub.add_parser("update")
-    state_update.add_argument("--root", default=".")
-    state_update.add_argument("--active-task")
-    state_update.add_argument("--last-result")
-    state_update.add_argument("--next-action")
-    state_update.add_argument("--blocker", action="append")
-    state_update.add_argument("--clear", action="store_true")
-    state_update.add_argument("--json", action="store_true")
-    state_update.set_defaults(func=command_state)
-
-    append = sub.add_parser("append", help="Safely append a decision or lesson entry")
+    append = sub.add_parser("append", help="Append a decision or lesson entry, preserving existing content")
     append.add_argument("kind", choices=["decision", "lesson"])
     append.add_argument("--root", default=".")
     append.add_argument("--file", help="Read entry from file; otherwise stdin")
     append.set_defaults(func=command_append)
-
-    hook = sub.add_parser("hook", help="Internal repository-integration lifecycle hook")
-    hook.add_argument("event", choices=["claude-session-start", "claude-task-completed", "claude-stop"])
-    hook.add_argument("--root", default=".")
-    hook.set_defaults(func=command_hook)
     return parser
 
 
@@ -533,12 +653,36 @@ def _configure_stdio() -> None:
             pass
 
 
+def _command_helps(parser: argparse.ArgumentParser) -> dict:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return {a.dest: a.help or "" for a in action._choices_actions}
+    return {}
+
+
+_COMMON_COMMANDS = ("init", "update", "doctor", "index", "tasks", "context", "prompt")
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     _configure_stdio()
+    argv = list(argv) if argv is not None else None
+    if argv and argv[:1] == ["hook"]:  # alias kept for installed agent settings
+        argv = ["integration", "hook"] + argv[1:]
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command not in {"version", "init", "update", "doctor"} and sys.stdout.isatty():
+        try:
+            notice = update_notice(__version__)
+            if notice:
+                print(f"NOTE: {notice}", file=sys.stderr)
+        except Exception:
+            pass
     if not args.command:
-        args = parser.parse_args(["init"] + list(argv or []))
+        print_welcome()
+        helps = _command_helps(parser)
+        print(render_commands_panel([(name, helps.get(name, "")) for name in _COMMON_COMMANDS]))
+        print("\nRun `lliki --help` for all commands; setup runs via `lliki init`.")
+        return 0
     try:
         return int(args.func(args))
     except KeyboardInterrupt:

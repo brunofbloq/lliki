@@ -1,24 +1,25 @@
 {
-  "schema_version": 2,
-  "template_pack_version": "0.2.1",
+  "schema_version": 3,
+  "template_pack_version": "0.4.0",
   "directories": [
     "wiki",
     "wiki/tasks",
     "wiki/exploratory",
-    "wiki/docs"
+    "wiki/docs",
+    "wiki/notes"
   ],
   "files": [
+    {
+      "template": "wiki/wiki-index.md",
+      "target": "wiki/wiki-index.md",
+      "strategy": "create-only",
+      "needs_context": false
+    },
     {
       "template": "CLAUDE.md",
       "target": "CLAUDE.md",
       "strategy": "managed-section",
       "section_id": "lliki-contract",
-      "needs_context": false
-    },
-    {
-      "template": "wiki/index.md",
-      "target": "wiki/index.md",
-      "strategy": "create-only",
       "needs_context": false
     },
     {
@@ -35,12 +36,6 @@
       "needs_context": false
     },
     {
-      "template": "wiki/tasks/dashboard.md",
-      "target": "wiki/tasks/dashboard.md",
-      "strategy": "generated",
-      "needs_context": false
-    },
-    {
       "template": "wiki/decisions.md",
       "target": "wiki/decisions.md",
       "strategy": "append-only",
@@ -50,19 +45,6 @@
       "template": "wiki/lessons_learned.md",
       "target": "wiki/lessons_learned.md",
       "strategy": "append-only",
-      "needs_context": false
-    },
-    {
-      "template": "wiki/exploratory/index.md",
-      "target": "wiki/exploratory/index.md",
-      "strategy": "create-only",
-      "needs_context": false
-    },
-    {
-      "template": "wiki/docs/README.md",
-      "target": "wiki/docs/README.md",
-      "strategy": "managed-section",
-      "section_id": "docs-index",
       "needs_context": false
     },
     {

@@ -16,7 +16,6 @@ from lliki.core.doctor import run_doctor
 from lliki.core.models import SetupConfig
 from lliki.core.prompts import estimate_prompt_tokens, load_prompts
 from lliki.core.resources import export_built_in_templates, validate_template_pack
-from lliki.core.tasks import refresh_dashboard
 from lliki.core.update import run_update
 from lliki.hooks import run_hook
 
@@ -46,12 +45,17 @@ class LlikiTests(unittest.TestCase):
             root = Path(temp)
             data = initialize_repository(root, SetupConfig(), interactive=False, yes=True)
             self.assertTrue((root / "CLAUDE.md").exists())
-            self.assertTrue((root / "wiki/index.md").exists())
+            self.assertTrue((root / "wiki/wiki-index.md").exists())
+            self.assertFalse((root / "wiki/index.md").exists())
             self.assertTrue((root / "wiki/tasks/scratchpad.md").exists())
+            for index in ("wiki/docs/docs-index.md", "wiki/tasks/tasks-index.md",
+                          "wiki/exploratory/exploratory-index.md", "wiki/notes/notes-index.md"):
+                self.assertTrue((root / index).exists(), index)
+            self.assertFalse((root / "wiki/tasks/resume.md").exists())
             self.assertIn("/wiki/tasks/scratchpad.md", (root / ".gitignore").read_text(encoding="utf-8"))
             self.assertIn("/wiki/tasks/.backup/", (root / ".gitignore").read_text(encoding="utf-8"))
             self.assertFalse((root / ".lliki").exists())
-            self.assertIn("embedded-systems-architect", data["prompts"][0])
+            self.assertNotIn("embedded-systems-architect", data["prompts"][0])
             self.assertNotIn("embedded-systems-architect", (root / "CLAUDE.md").read_text())
 
     def test_existing_claude_is_preserved_and_managed_contract_appended_once(self):
@@ -93,7 +97,7 @@ class LlikiTests(unittest.TestCase):
         self.assertGreater(estimate_prompt_tokens(prompt.body), 100)
         self.assertEqual(prompt.expected_total_tokens, "3000-7000")
 
-    def test_task_dashboard_generation_and_index_pointer(self):
+    def test_tasks_index_routes_scratchpad_current_task(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             initialize_repository(root, SetupConfig(), interactive=False, yes=True)
@@ -106,54 +110,95 @@ class LlikiTests(unittest.TestCase):
                 "---\nid: HWRD-115\ntitle: Sensor bring-up\nstatus: active\npriority: high\nupdated: 2026-07-31\n---\n# Task\n",
                 encoding="utf-8",
             )
-            result = refresh_dashboard(root, update_index=True)
-            self.assertTrue(result["dashboard_changed"])
-            self.assertEqual(result["task_count"], 1)
-            self.assertFalse(result["index_changed"])
-            self.assertIn("deprecated", result["warnings"][0])
-            dashboard = (root / "wiki/tasks/dashboard.md").read_text()
+            from lliki.core.indexing import refresh_indexes
+            refresh_indexes(root, ["tasks"])
+            dashboard = (root / "wiki/tasks/tasks-index.md").read_text()
             self.assertIn("HWRD-115", dashboard)
             self.assertNotIn("Recently Completed", dashboard)
-            self.assertNotIn("HWRD-115", (root / "wiki/index.md").read_text())
+            self.assertNotIn("HWRD-115", (root / "wiki/wiki-index.md").read_text())
+            current = dashboard.split("## Current Task", 1)[1]
+            self.assertIn("- None.", current)  # inactive scratchpad keeps route None
+            self.assertFalse((root / "wiki/tasks/resume.md").exists())
+            # active scratchpad drives the generated Current Task region
+            (root / "wiki/tasks/scratchpad.md").write_text(
+                "# S\n\n## Task\n\n- **File:** `wiki/tasks/HWRD-115-sensor.md`\n\n## Next Action\n\nGo.\n",
+                encoding="utf-8",
+            )
+            refresh_indexes(root, ["tasks"])
+            dashboard = (root / "wiki/tasks/tasks-index.md").read_text()
+            current = dashboard.split("## Current Task", 1)[1]
+            self.assertIn("HWRD-115", current)
+            self.assertIn("scratchpad", current)
 
-    def test_dashboard_backups_are_kept_in_backup_directory(self):
+    def test_tasks_index_links_closed_tasks_without_routing_them_as_current(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             initialize_repository(root, SetupConfig(), interactive=False, yes=True)
-            task = root / "wiki/tasks/HWRD-115-sensor.md"
-            task.write_text(
+            for task_id, status in (("LLIKI-900", "done"), ("LLIKI-902", "completed"), ("LLIKI-903", "cancelled")):
+                (root / f"wiki/tasks/{task_id.lower()}-{status}.md").write_text(
+                    f"---\nid: {task_id}\ntitle: Finished task\nstatus: {status}\n---\n# Task\n",
+                    encoding="utf-8",
+                )
+            planned = root / "wiki/tasks/LLIKI-901-planned.md"
+            planned.write_text(
+                "---\nid: LLIKI-901\ntitle: Upcoming task\nstatus: planned\n---\n# Task\n",
+                encoding="utf-8",
+            )
+            from lliki.core.indexing import refresh_indexes
+            refresh_indexes(root, ["tasks"])
+            index = (root / "wiki/tasks/tasks-index.md").read_text(encoding="utf-8")
+            planned_section, closed_section = index.split("## Planned", 1)[1].split("## Closed", 1)
+            self.assertIn("LLIKI-901", planned_section)
+            for task_id in ("LLIKI-900", "LLIKI-902", "LLIKI-903"):
+                self.assertNotIn(task_id, planned_section)
+                self.assertIn(task_id, closed_section)
+                self.assertEqual(index.count(f"|{task_id}]]"), 1)
+            self.assertIn("- None.", index.split("## Current Task", 1)[1])
+            self.assertFalse((root / "wiki/tasks/resume.md").exists())
+            self.assertFalse(any(issue["code"] == "WIKI003-orphan-document" for issue in run_doctor(root)["issues"]))
+
+    def test_task_index_backups_are_kept_in_backup_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / "wiki/tasks/HWRD-115-sensor.md").write_text(
                 "---\nid: HWRD-115\ntitle: Sensor bring-up\nstatus: active\npriority: high\n---\n# Task\n",
                 encoding="utf-8",
             )
-            result = refresh_dashboard(root)
-            backup = Path(result["backup"])
-            self.assertEqual(backup.parent, root / "wiki/tasks/.backup")
-            self.assertTrue(backup.exists())
-            self.assertEqual(list((root / "wiki/tasks").glob("dashboard.md.bak.*")), [])
+            from lliki.core.indexing import refresh_indexes
+            refresh_indexes(root, ["tasks"])
+            self.assertTrue(list((root / "wiki/tasks/.backup").glob("tasks-index.md.bak.*")))
+            self.assertEqual(list((root / "wiki/tasks").glob("*.md.bak.*")), [])
 
-    def test_dashboard_refresh_moves_existing_backups(self):
+    def test_layout_migration_retires_resume_and_moves_existing_backups(self):
+        from lliki.core.migration import migrate_legacy_layout
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / "wiki/tasks/resume.md").write_text("# Resume\n", encoding="utf-8")
             old_backup = root / "wiki/tasks/dashboard.md.bak.old"
             old_backup.write_text("old backup\n", encoding="utf-8")
-            result = refresh_dashboard(root)
-            moved = root / "wiki/tasks/.backup/dashboard.md.bak.old"
+            actions = migrate_legacy_layout(root)
+            self.assertFalse((root / "wiki/tasks/resume.md").exists())
+            self.assertEqual((root / "wiki/tasks/.backup/resume.md").read_text(encoding="utf-8"), "# Resume\n")
             self.assertFalse(old_backup.exists())
-            self.assertEqual(moved.read_text(encoding="utf-8"), "old backup\n")
-            self.assertIn(moved.as_posix(), result["moved_backups"])
+            self.assertEqual((root / "wiki/tasks/.backup/dashboard.md.bak.old").read_text(encoding="utf-8"), "old backup\n")
+            self.assertTrue(any("resume.md" in action for action in actions))
+            # idempotent
+            self.assertEqual([a for a in migrate_legacy_layout(root) if "resume" in a], [])
 
-    def test_dashboard_refresh_dry_run_does_not_move_backups(self):
+    def test_layout_migration_dry_run_touches_nothing(self):
+        from lliki.core.migration import migrate_legacy_layout
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / "wiki/tasks/resume.md").write_text("# Resume\n", encoding="utf-8")
             old_backup = root / "wiki/tasks/dashboard.md.bak.old"
             old_backup.write_text("old backup\n", encoding="utf-8")
-            result = refresh_dashboard(root, dry_run=True)
+            migrate_legacy_layout(root, dry_run=True)
+            self.assertTrue((root / "wiki/tasks/resume.md").exists())
             self.assertTrue(old_backup.exists())
-            self.assertFalse((root / "wiki/tasks/.backup").exists())
-            expected = (root / "wiki/tasks/.backup/dashboard.md.bak.old").as_posix()
-            self.assertIn(expected, result["moved_backups"])
+            self.assertFalse((root / "wiki/tasks/.backup/dashboard.md.bak.old").exists())
 
     def test_template_export_and_validation(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -229,36 +274,46 @@ class LlikiTests(unittest.TestCase):
             found = find_legacy_locations(root)
             self.assertNotIn("wiki/tasks", found["legacy_dirs"])
 
-    def test_state_cli_is_deprecated_stub(self):
+    def test_removed_deprecated_commands_are_rejected(self):
+        for argv in (["state", "show"], ["inspect"], ["init", "--scratchpad"], ["init", "--runtime", "assisted"]):
+            with tempfile.TemporaryDirectory() as temp:
+                stderr = io.StringIO()
+                with redirect_stderr(stderr):
+                    with self.assertRaises(SystemExit):
+                        main(argv + ["--root", temp])
+                self.assertIn("usage:", stderr.getvalue())
+
+    def test_doctor_includes_legacy_inspection(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / ".context").mkdir()
             output = io.StringIO()
             with redirect_stdout(output):
-                code = main(["state", "show", "--root", str(root), "--json"])
-            self.assertEqual(code, 2)
+                code = main(["doctor", "--root", str(root), "--json"])
             payload = json.loads(output.getvalue())
-            self.assertTrue(payload["deprecated"])
-            self.assertEqual(payload["scratchpad"], "wiki/tasks/scratchpad.md")
-            self.assertFalse((root / ".lliki").exists())
+            self.assertIn("legacy_dirs", payload["inspection"]["locations"])
+            self.assertIn(".context", payload["inspection"]["locations"]["legacy_dirs"])
+            self.assertIn("signals", payload["inspection"])
+            text_out = io.StringIO()
+            with redirect_stdout(text_out):
+                main(["doctor", "--root", str(root)])
+            self.assertIn("Legacy locations:", text_out.getvalue())
 
-    def test_deprecated_init_options_do_not_create_runtime(self):
+    def test_hook_cli_alias_routes_to_integration(self):
         with tempfile.TemporaryDirectory() as temp:
-            stderr = io.StringIO()
-            with redirect_stderr(stderr):
-                code = main(["init", "--root", temp, "--default", "--yes", "--scratchpad"])
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            out = io.StringIO()
+            old_stdin = os.sys.stdin
+            try:
+                os.sys.stdin = io.StringIO("{}")
+                with redirect_stdout(out):
+                    code = main(["hook", "claude-session-start", "--root", str(root)])
+            finally:
+                os.sys.stdin = old_stdin
             self.assertEqual(code, 0)
-            self.assertIn("--scratchpad is deprecated", stderr.getvalue())
-            self.assertTrue((Path(temp) / "wiki/tasks/scratchpad.md").exists())
-            self.assertFalse((Path(temp) / ".lliki").exists())
-
-        with tempfile.TemporaryDirectory() as temp:
-            stderr = io.StringIO()
-            with redirect_stderr(stderr):
-                code = main(["init", "--root", temp, "--custom", "--yes", "--runtime", "assisted"])
-            self.assertEqual(code, 2)
-            self.assertIn("--runtime assisted/debug is deprecated", stderr.getvalue())
-            self.assertFalse((Path(temp) / ".lliki").exists())
+            self.assertEqual(code, 0)
 
     def test_doctor_reports_scratchpad_and_legacy_runtime_issues(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -271,6 +326,15 @@ class LlikiTests(unittest.TestCase):
             self.assertIn("missing-scratchpad", codes)
             self.assertIn("legacy-lliki-directory", codes)
             self.assertTrue(report["ok"])
+
+    def test_doctor_accepts_compact_scratchpad_checkpoint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            scratchpad = root / "wiki/tasks/scratchpad.md"
+            self.assertIn("## Current State", scratchpad.read_text(encoding="utf-8"))
+            report = run_doctor(root)
+            self.assertNotIn("scratchpad-missing-section", {issue["code"] for issue in report["issues"]})
 
     def test_context_routes_from_active_scratchpad(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -330,6 +394,61 @@ class LlikiTests(unittest.TestCase):
             self.assertIn("HWRD-115", context)
             self.assertLess(len(context), 2000)
 
+    def test_bare_lliki_shows_command_overview_without_writing(self):
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as temp:
+            before = sorted(os.listdir(temp))
+            out = io.StringIO()
+            try:
+                os.chdir(temp)
+                with redirect_stdout(out):
+                    code = main([])
+            finally:
+                os.chdir(cwd)
+            text = out.getvalue()
+            self.assertEqual(code, 0)
+            self.assertIn("Commands", text)
+            for name in ("init", "update", "doctor", "index", "tasks", "context", "prompt"):
+                self.assertIn(name, text)
+            self.assertIn("lliki --help", text)
+            self.assertEqual(sorted(os.listdir(temp)), before)
+
+    def test_help_lists_all_public_commands(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            with self.assertRaises(SystemExit):
+                main(["--help"])
+        text = out.getvalue()
+        for name in ("init", "update", "doctor", "prompt", "templates", "tasks",
+                     "notes", "explore", "index", "integration", "version", "context", "append"):
+            self.assertIn(name, text)
+        self.assertNotIn("hook", text)
+
+    def test_bare_tasks_and_index_refresh(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / "wiki/tasks/HWRD-001-x.md").write_text(
+                "---\nid: HWRD-001\ntitle: X\nstatus: planned\n---\n# T\n", encoding="utf-8")
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["tasks", "--root", str(root), "--json"]), 0)
+            self.assertIn("wiki/tasks/tasks-index.md", json.dumps(json.loads(out.getvalue())))
+            self.assertIn("HWRD-001", (root / "wiki/tasks/tasks-index.md").read_text(encoding="utf-8"))
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["index", "--root", str(root), "--json"]), 0)
+            payload = json.loads(out.getvalue())
+            for key in ("created", "refreshed", "unchanged"):
+                self.assertIn(key, payload)
+
+    def test_commands_panel_lines_are_uniform_width(self):
+        from lliki.branding import render_commands_panel
+        commands = [("init", "short"), ("integration", "d" * 90)]
+        for width in (40, 80, 120):
+            lines = render_commands_panel(commands, width=width).splitlines()
+            self.assertEqual(len({len(line) for line in lines}), 1, width)
+
     def test_cli_default_noninteractive(self):
         with tempfile.TemporaryDirectory() as temp:
             output = io.StringIO()
@@ -347,6 +466,7 @@ class LlikiTests(unittest.TestCase):
             report = run_update(root)
             self.assertTrue((root / "wiki/tasks/scratchpad.md").exists())
             self.assertIn("/wiki/tasks/scratchpad.md", (root / ".gitignore").read_text(encoding="utf-8"))
+            self.assertFalse((root / "wiki/tasks/resume.md").exists())
             self.assertFalse((root / ".lliki").exists())
             self.assertTrue(report["doctor"]["ok"])
             self.assertFalse(report["semantic_migration_needed"])
@@ -358,7 +478,6 @@ class LlikiTests(unittest.TestCase):
             second = run_update(root)
             self.assertEqual(second["actions"]["created"], [])
             self.assertEqual(second["actions"]["updated"], [])
-            self.assertFalse(second["dashboard"]["dashboard_changed"])
             self.assertTrue(second["doctor"]["ok"])
 
     def test_update_preserves_existing_scratchpad_byte_for_byte(self):
@@ -403,7 +522,12 @@ class LlikiTests(unittest.TestCase):
             (root / "wiki/index.md").write_text(legacy_index, encoding="utf-8")
             (root / ".lliki").mkdir()
             report = run_update(root)
-            self.assertEqual((root / "wiki/index.md").read_text(encoding="utf-8"), legacy_index)
+            # safe migration: manual content preserved under the new named index
+            # path; only the deterministic generated region was appended.
+            self.assertFalse((root / "wiki/index.md").exists())
+            migrated = (root / "wiki/wiki-index.md").read_text(encoding="utf-8")
+            self.assertTrue(migrated.startswith(legacy_index))
+            self.assertIn("Project Snapshot", migrated)
             self.assertTrue((root / ".lliki").exists())
             self.assertTrue(report["semantic_migration_needed"])
             self.assertIn("Project Snapshot", report["legacy_index_sections"][0])
@@ -426,9 +550,190 @@ class LlikiTests(unittest.TestCase):
                 code = main(["update", "--root", temp, "--json"])
             self.assertEqual(code, 0)
             payload = json.loads(output.getvalue())
-            for key in ("root", "dry_run", "actions", "dashboard", "doctor", "warnings", "semantic_migration_needed", "migration_prompt"):
+            for key in ("root", "dry_run", "actions", "indexes", "doctor", "warnings", "semantic_migration_needed", "migration_prompt"):
                 self.assertIn(key, payload)
             self.assertIn("created", payload["actions"])
+            self.assertIn("migrated", payload["actions"])
+
+    # --- 0.4 folder indexes, notes, factory, doctor, update check ---
+
+    def test_index_refresh_creates_recursive_named_indexes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / "wiki/research/vision").mkdir(parents=True)
+            (root / "wiki/research/vision/experiment-a.md").write_text(
+                "---\ntitle: Experiment A\n---\n# Experiment A\n", encoding="utf-8")
+            from lliki.core.indexing import refresh_indexes
+            result = refresh_indexes(root)
+            self.assertTrue((root / "wiki/research/research-index.md").exists())
+            self.assertTrue((root / "wiki/research/vision/vision-index.md").exists())
+            research = (root / "wiki/research/research-index.md").read_text()
+            self.assertIn("[[research/vision/vision-index]]", research)
+            vision = (root / "wiki/research/vision/vision-index.md").read_text()
+            self.assertIn("[[research/vision/experiment-a|Experiment A]]", vision)
+            # idempotent second pass
+            second = refresh_indexes(root)
+            self.assertEqual(second["created"], [])
+            self.assertEqual(second["refreshed"], [])
+
+    def test_index_refresh_preserves_manual_content(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            notes_index = root / "wiki/notes/notes-index.md"
+            notes_index.write_text(
+                notes_index.read_text(encoding="utf-8") + "\n## Manual section\n\nKeep me.\n",
+                encoding="utf-8",
+            )
+            from lliki.core.indexing import refresh_folder
+            refresh_folder(root, root / "wiki/notes")
+            text = notes_index.read_text(encoding="utf-8")
+            self.assertIn("Keep me.", text)
+            self.assertEqual(text.count("## Manual section"), 1)
+
+    def test_document_factory_creates_and_indexes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            from lliki.core.documents import create_document
+            note = create_document(root, "note", "Toradex modem experiment", tags=["modem"])
+            self.assertRegex(note["path"], r"wiki/notes/\d{4}-\d{2}-\d{2}-toradex-modem-experiment\.md")
+            content = (root / note["path"]).read_text(encoding="utf-8")
+            self.assertIn("type: note", content)
+            self.assertIn('tags: ["modem"]', content)
+            index_text = (root / "wiki/notes/notes-index.md").read_text(encoding="utf-8")
+            self.assertIn("toradex-modem-experiment", index_text)
+            task = create_document(root, "task", "Implement API")
+            self.assertEqual(task["id"], "LLIKI-001")
+            self.assertTrue((root / task["path"]).exists())
+            second = create_document(root, "task", "Second task")
+            self.assertEqual(second["id"], "LLIKI-002")
+            explore = create_document(root, "exploratory", "Auth alternatives")
+            self.assertTrue((root / explore["path"]).exists())
+            with self.assertRaises(FileExistsError):
+                create_document(root, "note", "Toradex modem experiment")
+
+    def test_notes_cli_commands(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(main(["notes", "new", "Modem test", "--root", str(root)]), 0)
+            with redirect_stdout(out):
+                self.assertEqual(main(["notes", "list", "--root", str(root)]), 0)
+            self.assertIn("Modem test", out.getvalue())
+            from lliki.core.notes import append_to_note, search_notes, show_note
+            append_to_note(root, "modem-test", "UART works.", heading="Findings")
+            self.assertIn("UART works.", show_note(root, "modem-test"))
+            results = search_notes(root, "uart")
+            self.assertEqual(len(results), 1)
+
+    def test_doctor_detects_index_contract_violations(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            # WIKI001: new folder without index
+            (root / "wiki/research").mkdir()
+            codes = {issue["code"] for issue in run_doctor(root)["issues"]}
+            self.assertIn("WIKI001-missing-folder-index", codes)
+            (root / "wiki/research").rmdir()
+            # WIKI003: orphan note
+            (root / "wiki/notes/orphan.md").write_text("# Orphan\n", encoding="utf-8")
+            codes = {issue["code"] for issue in run_doctor(root)["issues"]}
+            self.assertIn("WIKI003-orphan-document", codes)
+            (root / "wiki/notes/orphan.md").unlink()
+            # WIKI005: stale generated region
+            notes_index = root / "wiki/notes/notes-index.md"
+            notes_index.write_text(
+                notes_index.read_text(encoding="utf-8").replace(
+                    "<!-- lliki:generated:start id=folder-index -->\n\n<!-- lliki:generated:end id=folder-index -->",
+                    "<!-- lliki:generated:start id=folder-index -->\n- stale\n<!-- lliki:generated:end id=folder-index -->"),
+                encoding="utf-8",
+            )
+            codes = {issue["code"] for issue in run_doctor(root)["issues"]}
+            self.assertIn("WIKI005-stale-generated-index", codes)
+
+    def test_doctor_flags_legacy_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            (root / "wiki/tasks/dashboard.md").write_text("# old\n", encoding="utf-8")
+            codes = {issue["code"] for issue in run_doctor(root)["issues"]}
+            self.assertIn("WIKI004-legacy-path", codes)
+
+    def test_context_json_exposes_collections(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(), interactive=False, yes=True)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main(["context", "--root", str(root), "--json"])
+            payload = json.loads(out.getvalue())
+            self.assertEqual(payload["entry"], "wiki/wiki-index.md")
+            self.assertEqual(payload["scratchpad"], "wiki/tasks/scratchpad.md")
+            self.assertNotIn("resume", payload)
+            self.assertEqual(payload["notes"], "wiki/notes/notes-index.md")
+            for key in ("docs", "tasks", "exploratory", "notes"):
+                self.assertIn(key, payload["collections"])
+
+    def test_updatecheck_policy_no_network_first_launches(self):
+        from lliki.core import updatecheck
+        with tempfile.TemporaryDirectory() as temp:
+            cache = Path(temp) / "update.json"
+            calls = []
+            def fake_fetch(timeout: float = 2.0):
+                calls.append(1)
+                return "99.0.0"
+            original_cache, original_fetch = updatecheck.cache_path, updatecheck.fetch_latest
+            updatecheck.cache_path = lambda: cache
+            updatecheck.fetch_latest = fake_fetch
+            try:
+                self.assertIsNone(updatecheck.update_notice("0.4.0"))  # launch 1
+                self.assertIsNone(updatecheck.update_notice("0.4.0"))  # launch 2
+                self.assertEqual(calls, [])
+                notice = updatecheck.update_notice("0.4.0")  # launch 3 checks
+                self.assertEqual(len(calls), 1)
+                self.assertIn("99.0.0", notice)
+                cached = updatecheck.update_notice("0.4.0")  # 24h window: serve cached notice
+                self.assertIn("99.0.0", cached)
+                self.assertEqual(len(calls), 1)
+            finally:
+                updatecheck.cache_path, updatecheck.fetch_latest = original_cache, original_fetch
+        # disabled via env
+        old = os.environ.get("LLIKI_NO_UPDATE_CHECK")
+        os.environ["LLIKI_NO_UPDATE_CHECK"] = "1"
+        try:
+            self.assertIsNone(updatecheck.update_notice("0.4.0"))
+        finally:
+            if old is None:
+                os.environ.pop("LLIKI_NO_UPDATE_CHECK", None)
+            else:
+                os.environ["LLIKI_NO_UPDATE_CHECK"] = old
+
+    def test_hermes_init_prints_navigation_contract(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main(["init", "--root", str(root), "--custom", "--integrate", "hermes", "--yes"])
+            text = out.getvalue()
+            self.assertIn("Hermes navigation contract", text)
+            self.assertIn("wiki/tasks/scratchpad.md", text)
+            self.assertIn("wiki/wiki-index.md", text)
+
+    def test_integration_status(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            initialize_repository(root, SetupConfig(setup_mode="custom", integrations=("generic", "hermes")), interactive=False, yes=True)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main(["integration", "status", "--root", str(root), "--json"])
+            status = json.loads(out.getvalue())
+            self.assertIn("installed", status["generic"])
+            self.assertIn("installed", status["hermes"])
+            self.assertEqual(status["claude"], "not installed")
 
 
 if __name__ == "__main__":

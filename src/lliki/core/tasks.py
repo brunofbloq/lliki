@@ -3,9 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
-
-from .patching import atomic_write, backup_file, extract_section, replace_section
+from typing import Dict, List, Optional
 
 SUPPORTED_STATUSES = {
     "active",
@@ -20,8 +18,9 @@ SUPPORTED_STATUSES = {
     "cancelled",
     "canceled",
 }
-IGNORED_TASK_FILENAMES = {"dashboard.md", "scratchpad.md"}
-DASHBOARD_BACKUP_DIRNAME = ".backup"
+# Non-task files that live in wiki/tasks/.
+IGNORED_TASK_FILENAMES = {"scratchpad.md", "resume.md", "dashboard.md", "tasks-index.md"}
+TASK_BACKUP_DIRNAME = ".backup"
 
 _FRONTMATTER = re.compile(r"\A---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
@@ -66,6 +65,7 @@ def parse_frontmatter(path: Path) -> Optional[TaskRecord]:
 def _is_task_candidate(path: Path) -> bool:
     return (
         path.name not in IGNORED_TASK_FILENAMES
+        and not path.name.endswith("-index.md")
         and ".backup" not in path.parts
         and ".bak." not in path.name
     )
@@ -86,42 +86,23 @@ def load_tasks(root: Path) -> List[TaskRecord]:
     return sorted(records, key=lambda r: (priority_order.get(r.priority, 9), r.task_id))
 
 
-def _section(title: str, tasks: Iterable[TaskRecord], empty: str = "None.") -> list[str]:
-    lines = [f"## {title}", ""]
-    items = list(tasks)
-    if not items:
-        lines.extend([f"- {empty}", ""])
-    else:
-        for task in items:
-            suffix = f" - priority: {task.priority}" if task.priority not in {"", "normal"} else ""
-            lines.append(f"- {task.link}{suffix}")
-        lines.append("")
-    return lines
+def active_task_record(root: Path) -> Optional[TaskRecord]:
+    """The task referenced by the scratchpad, if any. Never inferred from
+    priority or filename."""
+    from .context import scratchpad_route
+
+    mode, active_target = scratchpad_route(root)
+    if mode != "resume" or not active_target:
+        return None
+    return parse_frontmatter(root / active_target)
 
 
-def render_dashboard(tasks: List[TaskRecord]) -> str:
-    groups = {
-        "Active": [t for t in tasks if t.status in {"active", "in-progress", "in_progress"}],
-        "Blocked": [t for t in tasks if t.status == "blocked"],
-        "Planned": [t for t in tasks if t.status in {"planned", "todo", "backlog"}],
-    }
-    lines = [
-        "<!-- lliki:generated:start id=task-dashboard -->",
-        "# Task Dashboard",
-        "",
-    ]
-    for title, items in groups.items():
-        lines.extend(_section(title, items))
-    lines.append("<!-- lliki:generated:end id=task-dashboard -->")
-    return "\n".join(lines) + "\n"
-
-
-def _migrate_dashboard_backups(task_dir: Path, *, dry_run: bool = False) -> list[str]:
+def migrate_task_backups(task_dir: Path, *, dry_run: bool = False) -> list[str]:
     moved: list[str] = []
     if not task_dir.exists():
         return moved
-    backup_dir = task_dir / DASHBOARD_BACKUP_DIRNAME
-    for path in sorted(task_dir.glob("dashboard.md.bak.*")):
+    backup_dir = task_dir / TASK_BACKUP_DIRNAME
+    for path in sorted(task_dir.glob("*.md.bak.*")):
         destination = backup_dir / path.name
         moved.append(destination.as_posix())
         if dry_run:
@@ -134,40 +115,3 @@ def _migrate_dashboard_backups(task_dir: Path, *, dry_run: bool = False) -> list
             raise FileExistsError(f"Refusing to overwrite existing backup: {destination}")
         path.replace(destination)
     return moved
-
-
-def refresh_dashboard(root: Path, update_index: bool = False, dry_run: bool = False) -> dict:
-    tasks = load_tasks(root)
-    task_dir = root / "wiki" / "tasks"
-    moved_backups = _migrate_dashboard_backups(task_dir, dry_run=dry_run)
-    dashboard_path = task_dir / "dashboard.md"
-    rendered = render_dashboard(tasks)
-    changed = False
-    backup = None
-    if dashboard_path.exists():
-        existing = dashboard_path.read_text(encoding="utf-8")
-        updated, replaced = replace_section(existing, rendered, "task-dashboard", kind="generated")
-        if not replaced and extract_section(existing, "task-dashboard", kind="generated") is None:
-            updated = rendered
-            replaced = updated != existing
-        if replaced:
-            changed = True
-            if not dry_run:
-                backup = backup_file(dashboard_path, dashboard_path.parent / DASHBOARD_BACKUP_DIRNAME)
-                atomic_write(dashboard_path, updated)
-    else:
-        changed = True
-        if not dry_run:
-            atomic_write(dashboard_path, rendered)
-
-    warnings: list[str] = []
-    if update_index:
-        warnings.append("--update-index is deprecated; wiki/index.md is a stable knowledge map and was not changed.")
-    return {
-        "task_count": len(tasks),
-        "dashboard_changed": changed,
-        "index_changed": False,
-        "backup": str(backup) if backup else None,
-        "moved_backups": moved_backups,
-        "warnings": warnings,
-    }

@@ -8,7 +8,7 @@ and information placement. This is the LLM semantic-lint workflow; deterministic
 structure checks belong to `lliki doctor`.
 
 1. If resuming active local work, read `wiki/tasks/scratchpad.md` first. Otherwise
-   start from `wiki/index.md`.
+   start from `wiki/wiki-index.md`.
 2. Read `wiki/wiki-rules.md` and only the relevant wiki pages.
 3. Verify implementation-sensitive claims against source code, tests,
    configuration, specifications, Git evidence, or task evidence where

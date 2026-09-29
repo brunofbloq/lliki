@@ -6,6 +6,7 @@ from typing import Callable
 from lliki.integrations.install import install_selected
 
 from .gitignore import ensure_scratchpad_ignored
+from .indexing import refresh_indexes
 from .inspection import find_legacy_locations, repository_signals
 from .models import OperationResult, SetupConfig, TemplateFile
 from .patching import append_section, atomic_write, backup_file, replace_section
@@ -126,6 +127,15 @@ def apply_template_pack(
                 text = target.read_text(encoding="utf-8")
                 if "NEEDS_CONTEXT: LLM_OR_HUMAN" in text or "Needs validation" in text:
                     result.needs_context.append(item.target)
+
+    # 0.4+ named indexes and execution route (deterministic, idempotent).
+    indexes = refresh_indexes(root, dry_run=dry_run)
+    for path in indexes["created"]:
+        if path not in result.created:
+            result.created.append(path)
+    for path in indexes["refreshed"]:
+        if path not in result.updated:
+            result.updated.append(path)
     return result
 
 

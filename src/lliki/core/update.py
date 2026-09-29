@@ -6,10 +6,11 @@ from typing import Any, Dict
 from .bootstrap import apply_template_pack
 from .doctor import run_doctor
 from .gitignore import ensure_scratchpad_ignored
+from .indexing import refresh_indexes
 from .inspection import find_legacy_locations, repository_signals
+from .migration import migrate_legacy_layout
 from .paths import LEGACY_SCRATCHPAD_RELATIVE_PATH, SCRATCHPAD_RELATIVE_PATH, legacy_scratchpad_path
 from .prompts import format_prompt, load_prompts
-from .tasks import refresh_dashboard
 
 _LEGACY_INDEX_SECTIONS = (
     "## Project Snapshot",
@@ -21,14 +22,16 @@ _LEGACY_INDEX_SECTIONS = (
 
 
 def _legacy_index_sections(root: Path) -> list[str]:
-    path = root / "wiki" / "index.md"
-    if not path.exists():
-        return []
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (UnicodeDecodeError, OSError):
-        return []
-    return [section for section in _LEGACY_INDEX_SECTIONS if section in text]
+    for name in ("wiki/wiki-index.md", "wiki/index.md"):
+        path = root / name
+        if not path.exists():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            return []
+        return [section for section in _LEGACY_INDEX_SECTIONS if section in text]
+    return []
 
 
 def run_update(root: Path, *, dry_run: bool = False, max_depth: int = 6) -> Dict[str, Any]:
@@ -39,6 +42,8 @@ def run_update(root: Path, *, dry_run: bool = False, max_depth: int = 6) -> Dict
     inspection = find_legacy_locations(root, max_depth=max_depth)
     signals = repository_signals(root)
     legacy_index_sections = _legacy_index_sections(root)
+
+    migration_actions = migrate_legacy_layout(root, dry_run=dry_run)
 
     result = apply_template_pack(
         root,
@@ -55,7 +60,7 @@ def run_update(root: Path, *, dry_run: bool = False, max_depth: int = 6) -> Dict
     else:
         result.preserved.append(gitignore.path)
 
-    dashboard = refresh_dashboard(root, update_index=False, dry_run=dry_run)
+    indexes = refresh_indexes(root, dry_run=dry_run)
     doctor = run_doctor(root)
 
     warnings: list[str] = list(result.warnings)
@@ -67,7 +72,7 @@ def run_update(root: Path, *, dry_run: bool = False, max_depth: int = 6) -> Dict
             f"manually migrate useful handover notes into {SCRATCHPAD_RELATIVE_PATH}."
         )
     if legacy_index_sections:
-        warnings.append("Legacy mutable wiki/index.md sections were detected and were not rewritten automatically.")
+        warnings.append("Legacy mutable wiki index sections were detected and were not rewritten automatically.")
     if any(issue["code"] == "scratchpad-tracked" for issue in doctor["issues"]):
         warnings.append(f"{SCRATCHPAD_RELATIVE_PATH} appears to be tracked; Lliki will not untrack it automatically.")
 
@@ -84,8 +89,9 @@ def run_update(root: Path, *, dry_run: bool = False, max_depth: int = 6) -> Dict
             "updated": result.updated,
             "preserved": result.preserved,
             "backups": result.backups,
+            "migrated": migration_actions,
         },
-        "dashboard": dashboard,
+        "indexes": indexes,
         "doctor": doctor,
         "warnings": warnings,
         "legacy_index_sections": legacy_index_sections,

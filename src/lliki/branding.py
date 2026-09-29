@@ -59,3 +59,17 @@ def print_welcome(stream: TextIO = sys.stdout, width: int | None = None) -> None
     """Print the welcome block for a human-facing interactive setup."""
     print(render_welcome(width=width), file=stream)
     print(file=stream)
+
+
+def render_commands_panel(commands: "list[tuple[str, str]]", width: int | None = None) -> str:
+    """Render a framed command overview; every line is exactly ``columns`` wide."""
+    columns = width or shutil.get_terminal_size(fallback=(80, 24)).columns
+    name_width = max(len(name) for name, _ in commands)
+    columns = max(columns, name_width + 16)
+    max_help = columns - name_width - 6
+    lines = ["╭─ Commands " + "─" * (columns - 13) + "╮"]
+    for name, help_text in commands:
+        text = help_text if len(help_text) <= max_help else help_text[: max_help - 1] + "…"
+        lines.append(f"│ {name:<{name_width}}  {text:<{max_help}} │")
+    lines.append("╰" + "─" * (columns - 2) + "╯")
+    return "\n".join(lines)

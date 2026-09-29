@@ -4,11 +4,27 @@ import re
 from pathlib import Path
 from typing import Any, Dict
 
-from .paths import SCRATCHPAD_RELATIVE_PATH, scratchpad_path
+from .paths import (
+    DOCS_INDEX_RELATIVE_PATH,
+    EXPLORATORY_INDEX_RELATIVE_PATH,
+    NOTES_INDEX_RELATIVE_PATH,
+    SCRATCHPAD_RELATIVE_PATH,
+    TASKS_INDEX_RELATIVE_PATH,
+    WIKI_INDEX_RELATIVE_PATH,
+    index_name_for,
+    scratchpad_path,
+)
 
 _SECTION = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 _TASK_FILE = re.compile(r"^- \*\*File:\*\*\s*`([^`]+)`\s*$", re.MULTILINE)
 _NO_ACTIVE = re.compile(r"^\s*No active task\.\s*$", re.MULTILINE | re.IGNORECASE)
+
+_CORE_COLLECTIONS = {
+    "tasks": TASKS_INDEX_RELATIVE_PATH,
+    "docs": DOCS_INDEX_RELATIVE_PATH,
+    "exploratory": EXPLORATORY_INDEX_RELATIVE_PATH,
+    "notes": NOTES_INDEX_RELATIVE_PATH,
+}
 
 
 def _section_text(text: str, heading: str) -> str | None:
@@ -45,15 +61,36 @@ def scratchpad_route(root: Path) -> tuple[str, str | None]:
     return "resume", value
 
 
+def discover_collections(root: Path) -> Dict[str, str]:
+    """Named folder indexes under wiki/, recursively. Custom folders appear
+    automatically."""
+    collections: Dict[str, str] = {}
+    wiki = root / "wiki"
+    if not wiki.is_dir():
+        return collections
+    for directory in sorted(path for path in wiki.rglob("*") if path.is_dir() and ".backup" not in path.parts):
+        name = "/".join(directory.relative_to(wiki).as_posix().split("/"))
+        candidate = directory / index_name_for(directory)
+        if candidate.exists():
+            collections[name] = candidate.relative_to(root).as_posix()
+    return collections
+
+
 def context_routes(root: Path) -> Dict[str, Any]:
-    index_path = root / "wiki" / "index.md"
-    current_scratchpad_path = scratchpad_path(root)
+    def exists(relative: str) -> "str | None":
+        return relative if (root / relative).exists() else None
+
     mode, active_target = scratchpad_route(root)
-    return {
+    collections = discover_collections(root)
+    routes = {
         "mode": mode,
-        "scratchpad": SCRATCHPAD_RELATIVE_PATH if current_scratchpad_path.exists() else None,
-        "index": "wiki/index.md" if index_path.exists() else None,
+        "entry": exists(WIKI_INDEX_RELATIVE_PATH),
+        "scratchpad": exists(SCRATCHPAD_RELATIVE_PATH),
         "active_task": active_target,
-        "dashboard": "wiki/tasks/dashboard.md" if (root / "wiki/tasks/dashboard.md").exists() else None,
-        "rules": "wiki/wiki-rules.md" if (root / "wiki/wiki-rules.md").exists() else None,
+        "decisions": exists("wiki/decisions.md"),
+        "lessons": exists("wiki/lessons_learned.md"),
+        "collections": collections,
     }
+    for key in _CORE_COLLECTIONS:
+        routes[key] = collections.get(key) or exists(_CORE_COLLECTIONS[key])
+    return routes

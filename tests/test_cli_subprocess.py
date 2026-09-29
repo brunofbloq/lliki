@@ -23,12 +23,15 @@ class CLISubprocessTests(unittest.TestCase):
             check=False,
         )
 
-    def test_inspect_json(self):
+    def test_doctor_json_includes_inspection(self):
         with tempfile.TemporaryDirectory() as temp:
             Path(temp, ".context").mkdir()
-            result = self.run_cli("inspect", "--root", temp, "--json")
-            self.assertEqual(result.returncode, 0, result.stderr)
+            init = self.run_cli("init", "--root", temp, "--default", "--yes")
+            self.assertEqual(init.returncode, 0, init.stderr)
+            result = self.run_cli("doctor", "--root", temp, "--json")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn('".context"', result.stdout)
+            self.assertIn('"signals"', result.stdout)
 
     def test_prompt_show(self):
         result = self.run_cli("prompt", "show", "complete-task")

@@ -25,3 +25,6 @@ wiki/.obsidian/
 # Lliki generated task backups
 /wiki/tasks/.backup/
 CLAUDE.md
+
+# cocoindex-code local index
+.cocoindex_code/

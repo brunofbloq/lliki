@@ -11,3 +11,12 @@ than duplicating their content.
 - [[development-workflow|Development Workflow and Commands]]
 - [[repository-rules|Repository Rules and Protected Paths]]
 <!-- lliki:managed:end id=docs-index -->
+
+<!-- lliki:generated:start id=folder-index -->
+
+- [[docs/AGENT_INTEGRATIONS|Agent Integrations]]
+- [[docs/DESIGN|Lliki Design]]
+- [[docs/IMPLEMENTATION_CHECKPOINTS|Implementation Checkpoints]]
+- [[docs/RELEASE_PROCESS|Release Process]]
+
+<!-- lliki:generated:end id=folder-index -->

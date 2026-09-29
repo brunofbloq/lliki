@@ -72,9 +72,9 @@ def install_claude(root: Path, hooks_enabled: bool = False) -> dict:
             backups.append(str(backup_path.relative_to(root)))
         else:
             settings = {}
-        _merge_hook(settings, "SessionStart", "lliki hook claude-session-start")
-        _merge_hook(settings, "TaskCompleted", "lliki hook claude-task-completed")
-        _merge_hook(settings, "Stop", "lliki hook claude-stop")
+        _merge_hook(settings, "SessionStart", "lliki integration hook claude-session-start")
+        _merge_hook(settings, "TaskCompleted", "lliki integration hook claude-task-completed")
+        _merge_hook(settings, "Stop", "lliki integration hook claude-stop")
         atomic_write(settings_path, json.dumps(settings, indent=2) + "\n")
         files.append(".claude/settings.json")
     return {"integration": "claude", "status": status, "backups": backups, "files": files}
@@ -84,7 +84,22 @@ def install_hermes(root: Path) -> dict:
     status, backup = _install_managed_file(
         root, ".hermes.md", "integrations/hermes/HERMES.md", "hermes-agent-contract"
     )
-    return {"integration": "hermes", "status": status, "backup": backup, "files": [".hermes.md"]}
+    return {
+        "integration": "hermes",
+        "status": status,
+        "backup": backup,
+        "files": [".hermes.md"],
+        "message": (
+            "Hermes integration configured.\n\n"
+            "Created/updated:\n  .hermes.md\n\n"
+            "Hermes navigation contract:\n"
+            "  1. Resume existing work from wiki/tasks/scratchpad.md and wiki/tasks/tasks-index.md.\n"
+            "  2. Start new work from wiki/wiki-index.md.\n"
+            "  3. Follow named folder indexes before scanning folders.\n"
+            "  4. Read only relevant linked documents.\n"
+            "  5. Update durable knowledge only when appropriate."
+        ),
+    }
 
 
 def install_selected(root: Path, selected: Iterable[str], claude_hooks: bool = False) -> list[dict]:

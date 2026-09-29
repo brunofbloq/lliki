@@ -1,4 +1,2 @@
 recursive-include src/lliki/templates *
 include README.md LICENSE CHANGELOG.md
-
-recursive-include docs *

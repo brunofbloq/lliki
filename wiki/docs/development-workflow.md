@@ -48,10 +48,9 @@ lliki templates validate
 Useful Lliki structural checks while working in this repository:
 
 ```bash
-lliki inspect
 lliki doctor
 lliki context
-lliki tasks refresh
+lliki tasks
 lliki update
 lliki templates diff
 ```
@@ -77,6 +76,25 @@ output for the command:
 ```powershell
 $env:PYTHONIOENCODING='utf-8'; .\.venv\Scripts\lliki.exe init --default --yes
 ```
+
+## Optional Semantic Code Search (ccc, opt-in)
+
+LLIKI-051 pilot: `cocoindex-code` provides local semantic search over `*.py`
+and `*.md`. It is external tooling; Lliki core never depends on it.
+
+```powershell
+uv tool install 'cocoindex-code[full]'   # ccc on PATH, local embeddings
+ccc index                                # incremental; state in .cocoindex_code/ (gitignored)
+ccc search "stale generated index"
+```
+
+Required setup on this machine (see LL-006): set
+`~/.cocoindex_code/global_settings.yml` to
+`Snowflake/snowflake-arctic-embed-m` with `query_params.prompt_name: query`;
+the default xs model has unusable code recall and CodeRankEmbed crashes on
+the pinned stack. Set `$env:PYTHONIOENCODING='utf-8'` for non-TTY shells.
+Project settings live in `.cocoindex_code/settings.yml`
+(includes `**/*.py`, `**/*.md`; excludes `.backup/`, scratchpad, hidden dirs).
 
 ## Validation Evidence
 

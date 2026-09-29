@@ -20,9 +20,12 @@ Lliki is packaged as a Python project named `lliki` with the console script
 
 Major source areas:
 
-- `src/lliki/cli.py`: argparse command surface for `init`, `inspect`,
-  `doctor`, `prompt`, `templates`, `tasks`, `context`, `state`, `append`, and
-  `hook`.
+- `src/lliki/cli.py`: argparse command surface for `init`, `doctor`
+  (with legacy-location inspection), `prompt`, `templates`, `tasks`, `notes`,
+  `explore`, `index`, `context`, `update`, `integration`, `append`, and
+  `version`; bare `lliki` prints a common-command overview without writing,
+  and `lliki hook <event>` remains an input alias for
+  `lliki integration hook`.
 - `src/lliki/core/`: deterministic operations for bootstrap, template
   resources, patching, inspection, doctor checks, prompts, tasks, context
   routing, Git-ignore handling, and append behavior.
@@ -53,9 +56,6 @@ Durable constraints:
   project-neutral.
 - Do not require network services, API credentials, or LLM calls for normal CLI
   mechanics.
-- Specialist skill note: the generated prompt mentions
-  `embedded-systems-architect`, but that skill is not available in this
-  session and no embedded target is evidenced by this Python CLI repository.
 
 ## Evidence
 
