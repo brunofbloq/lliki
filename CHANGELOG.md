@@ -1,5 +1,11 @@
 ﻿# Changelog
 
+## 0.4.1 - 2026-09-30
+
+- Fixed `print_welcome` binding its output stream at import time; it now
+  resolves `sys.stdout` at call time, so redirected streams no longer crash
+  with `UnicodeEncodeError` on Windows cp1252 consoles.
+
 ## 0.4.0 - 2026-09-30
 
 - Reorganized the wiki around named folder indexes (`wiki-index.md` plus
