@@ -1,8 +1,30 @@
-# Changelog
+﻿# Changelog
 
-## UNRELEASED - 2026-08-02
-- Change the TUI messages for more specific and accurate setup
-- Improved README.md for better scope
+## 0.4.0 - 2026-09-30
+
+- Reorganized the wiki around named folder indexes (`wiki-index.md` plus
+  `<folder>-index.md` per directory) with deterministic, LLM-free generation
+  and preserved manual content outside generated regions.
+- `wiki/index.md` renamed to `wiki/wiki-index.md`; project documentation and
+  assets migrated under `wiki/docs/` and `assets/`.
+- Task workflow rebuilt: `tasks-index.md` is the single execution entry with a
+  generated scratchpad-driven `Current Task` region; the separate `resume.md`
+  route was retired. Closed tasks stay reachable via compact ID-only links.
+- Added content commands: `lliki tasks new`, `lliki notes`, `lliki explore`,
+  `lliki append`; notes and decisions/lessons are front-matter Markdown.
+- Documented the Obsidian vault format contract (wikilinks, YAML front
+  matter, no Dataview/Templater dependency).
+- Added lazy, cached PyPI update detection (`lliki version --check`,
+  background notice, `LLIKI_NO_UPDATE_CHECK=1`); no repository data sent.
+- Compacted the command surface: bare `lliki` shows a read-only common-command
+  overview; bare `tasks`, `index`, and `integration` perform their default
+  action; `doctor --json` carries legacy-location inspection; `hook` moved to
+  `lliki integration hook` with a compatibility alias; removed `state`,
+  `inspect`, `--runtime`, `--scratchpad`, and `--update-index`.
+- Leaner prompt templates and agent contracts; removed embedded-specialist
+  and resume-route wording.
+- Optional semantic code search pilot documented via `cocoindex-code`
+  (`ccc` skill), fully external to lliki core.
 
 ## 0.3.0 - 2026-08-01
 
