@@ -55,8 +55,9 @@ def render_welcome(width: int | None = None) -> str:
     )
 
 
-def print_welcome(stream: TextIO = sys.stdout, width: int | None = None) -> None:
+def print_welcome(stream: TextIO | None = None, width: int | None = None) -> None:
     """Print the welcome block for a human-facing interactive setup."""
+    stream = stream or sys.stdout
     print(render_welcome(width=width), file=stream)
     print(file=stream)
 
