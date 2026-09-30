@@ -90,3 +90,13 @@ Record only confirmed, reusable, and non-obvious findings.
 - **Prevention:** On any semantic-search tool, benchmark 3-5 known-anchor queries before trusting results; never accept the default model for code-heavy repos.
 - **Evidence:** `ccc doctor`/`ccc search` sessions 2026-09-29 on this repo; `~/.cocoindex_code/global_settings.yml`.
 - **Related tasks:** LLIKI-051 (cocoindex experiment, spec section 28)
+
+## LL-007: PowerShell 5.1 UTF8 Writes a BOM That Breaks TOML Parsing
+
+- **Date:** 2026-09-30
+- **Observed behavior:** Editing `pyproject.toml` with `Set-Content -Encoding UTF8` produced `ERROR Failed to parse ... Invalid statement (at line 1, column 1)` in `python -m build`; the committed file carried a UTF-8 BOM.
+- **Root cause:** Windows PowerShell 5.1 `-Encoding UTF8` writes a BOM; strict TOML parsers reject it. `.NET File.ReadAllText` then strips the BOM automatically, so a manual `Substring(1)` "BOM strip" silently deleted the real first character.
+- **Resolution:** Rewrite with `[IO.File]::WriteAllText` and a BOM-less `UTF8Encoding(false)`; regenerate damaged files from `git cat-file blob` content decoded `utf-8-sig`.
+- **Prevention:** On this platform prefer Python or .NET writers for source/config edits; verify `tomllib` parses `pyproject.toml` before release build.
+- **Evidence:** `git log` commits `50e8baa`/`7f9d0dd`, Release workflow run 5, `python -m build` output above.
+- **Related tasks:** Release v0.4.0/v0.4.1 operations
